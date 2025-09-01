@@ -1,0 +1,9 @@
+﻿{
+  "features": { "market_widget_feed": true, "risk_protections": true },
+  "api": { "paper": true, "shadow": true },
+  "shadow": { "rest_base": "https://testnet.binance.vision", "ws_base": "wss://testnet.binance.vision/ws" },
+  "ui": { "chart": "lightweight", "theme": "dark" },
+  "strategy": { "symbol": "BNBUSDT", "loop_sleep": 0.2 },
+  "risk": { "max_drawdown_pct": 10, "dd_window_sec": 86400, "stop_duration_sec": 43200, "cooldown_sec": 1800, "min_trades_for_dd": 0 },
+  "history": { "db_path": "data/history.sqlite3", "retention_days": 365 }
+}

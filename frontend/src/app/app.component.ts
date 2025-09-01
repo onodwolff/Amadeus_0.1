@@ -6,6 +6,7 @@ import { ConfigComponent } from './components/config/config.component';
 import { GuardsComponent } from './components/guards/guards.component';
 import { ChartHostComponent } from './components/chart-host/chart-host.component';
 import { HistoryComponent } from './components/history/history.component';
+import { RiskWidgetComponent } from './components/risk-widget/risk-widget.component';
 
 @Component({
   selector: 'app-root',
@@ -16,8 +17,9 @@ import { HistoryComponent } from './components/history/history.component';
     LogsComponent,
     ConfigComponent,
     GuardsComponent,
-    ChartHostComponent,   // ⬅️ тут хост, он сам подгружает нужный чарт
-    HistoryComponent
+    ChartHostComponent,
+    HistoryComponent,
+    RiskWidgetComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']

@@ -1,3 +1,9 @@
-<div class="tv-advanced-wrap">
-    <div [id]="id" class="tv-advanced-container"></div>
+<div class="tv-wrap">
+    <div [id]="containerId" class="tv-container"></div>
+
+    <div *ngIf="loading" class="overlay">Загрузка TradingView…</div>
+    <div *ngIf="!loading && error" class="overlay error">
+        {{ error }}<br>
+        Проверь блокировщики (AdGuard/uBO/NextDNS) и доступ к *.tradingview.com / s3.tradingview.com.
+    </div>
 </div>

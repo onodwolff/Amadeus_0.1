@@ -1,6 +1,7 @@
-import { Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
+import { Component, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
+import { ScriptLoaderService } from '../../services/script-loader.service';
 
 declare global {
     interface Window { TradingView?: any; }
@@ -13,89 +14,102 @@ declare global {
     templateUrl: './tv-advanced.component.html',
     styleUrls: ['./tv-advanced.component.css']
 })
-export class TvAdvancedComponent implements OnInit, OnDestroy {
-    private containerId = 'tv-advanced-' + Math.random().toString(36).slice(2);
-    symbol = 'BINANCE:BTCUSDT';
-    theme: 'dark' | 'light' = 'dark';
-    private scriptEl?: HTMLScriptElement;
-    private widget?: any;
+export class TvAdvancedComponent {
+    containerId = 'tvw-' + Math.random().toString(36).slice(2);
+    error = '';
+    loading = true;
 
-    constructor(private el: ElementRef, private api: ApiService) {}
+    private symbol = 'BNBUSDT';
+    private theme: 'dark'|'light' = 'dark';
 
-    async ngOnInit(): Promise<void> {
-        await this.loadConfig();
-        await this.ensureScriptLoaded();
-        this.mountWidget();
+    constructor(
+        private el: ElementRef,
+        private api: ApiService,
+        private loader: ScriptLoaderService,
+    ) {}
+
+    async ngOnInit() {
+        await this.readConfig();
+        this.initWidget();
     }
 
-    ngOnDestroy(): void {
-        try {
-            if (this.widget && typeof this.widget.remove === 'function') {
-                this.widget.remove();
-            }
-        } catch { /* noop */ }
-        if (this.scriptEl && this.scriptEl.parentNode) {
-            // tv.js можно оставить кэшированным; удаление не обязательно.
-            // this.scriptEl.parentNode.removeChild(this.scriptEl);
-        }
-    }
-
-    private async loadConfig() {
+    private async readConfig() {
         try {
             const res: any = await this.api.getConfig().toPromise();
-            const cfg = (res && res.cfg) || {};
-            // пробуем вытащить символ из стратегии
-            const rawSym: string = (cfg.strategy && cfg.strategy.symbol) || 'BTCUSDT';
-            this.symbol = rawSym.includes(':') ? rawSym : `BINANCE:${rawSym}`;
-            // тема из cfg.ui.theme ('dark'|'light'), по умолчанию dark
-            const ui = (cfg.ui || {});
+            const cfg = res?.cfg ?? res ?? {};
+            const ui = cfg?.ui ?? {};
+            const strat = cfg?.strategy ?? {};
             this.theme = (ui.theme === 'light' ? 'light' : 'dark');
+            this.symbol = String(strat.symbol ?? 'BNBUSDT').toUpperCase();
         } catch {
-            this.symbol = 'BINANCE:BTCUSDT';
+            this.symbol = 'BNBUSDT';
             this.theme = 'dark';
         }
     }
 
-    private ensureScriptLoaded(): Promise<void> {
-        return new Promise((resolve) => {
-            if (window.TradingView) return resolve();
-            const script = document.createElement('script');
-            script.type = 'text/javascript';
-            script.src = 'https://s3.tradingview.com/tv.js';
-            script.onload = () => resolve();
-            document.head.appendChild(script);
-            this.scriptEl = script;
-        });
+    private async initWidget() {
+        this.loading = true;
+        this.error = '';
+
+        // 1) грузим библиотеку виджета
+        try {
+            await Promise.race([
+                this.loader.load('https://s3.tradingview.com/tv.js', 'tradingview_widget_js'),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout loading tv.js')), 8000)),
+            ]);
+        } catch (e: any) {
+            this.loading = false;
+            this.error = 'Не удалось загрузить TradingView (возможна блокировка s3.tradingview.com).';
+            return;
+        }
+
+        // 2) ждём появления TradingView в window
+        const ok = await this.waitFor(() => !!window.TradingView, 8000);
+        if (!ok) {
+            this.loading = false;
+            this.error = 'TradingView недоступен (window.TradingView не появился).';
+            return;
+        }
+
+        // 3) создаём контейнер
+        const host: HTMLElement = this.el.nativeElement.querySelector('#' + this.containerId);
+        if (!host) { this.loading = false; this.error = 'Контейнер виджета не найден.'; return; }
+
+        // 4) инициализируем Advanced Chart
+        try {
+            /* Документация: Advanced Real-Time Chart (виджет). Инициализация — new TradingView.widget({...}). */
+            new window.TradingView.widget({
+                container_id: this.containerId,
+                symbol: this.mapSymbol(this.symbol),   // BINANCE:BNBUSDT
+                interval: '60',
+                theme: this.theme,
+                style: '1',
+                locale: 'ru',
+                autosize: true,
+                hide_top_toolbar: false,
+                hide_legend: false,
+                allow_symbol_change: true,
+                save_image: false,
+                studies: [],
+            });
+            this.loading = false;
+        } catch (e: any) {
+            this.loading = false;
+            this.error = 'Ошибка инициализации TradingView.widget().';
+        }
     }
 
-    private mountWidget() {
-        const container = this.el.nativeElement.querySelector(`#${this.containerId}`);
-        if (!container || !window.TradingView) return;
-
-        // Документация Advanced Chart widget (tv.js) — конфиг через TradingView.widget(...)
-        // https://www.tradingview.com/widget-docs/widgets/charts/advanced-chart/
-        this.widget = new window.TradingView.widget({
-            container_id: this.containerId,
-            symbol: this.symbol,             // например BINANCE:BNBUSDT
-            interval: '1',                   // 1m
-            timezone: 'Etc/UTC',
-            theme: this.theme,
-            style: '1',
-            locale: 'en',
-            autosize: true,
-            // доп. опции, часто полезные в скальпинге:
-            hide_top_toolbar: false,
-            hide_legend: false,
-            hide_side_toolbar: false,
-            allow_symbol_change: true,
-            withdateranges: true,
-            details: true,
-            studies: ['Volume@tv-basic-study'],
-            // НЕ указываем datafeed — виджет сам тянет рыночные данные TradingView (display-only). :contentReference[oaicite:2]{index=2}
-            // Если в будущем понадобится локальный datafeed без зависимости от TV — см. Charting Library / Lightweight Charts. :contentReference[oaicite:3]{index=3}
-        });
+    private mapSymbol(sym: string): string {
+        // простое сопоставление для крипты на Binance в виджете TradingView
+        return `BINANCE:${sym}`;
     }
 
-    // Шаблон использует containerId
-    get id() { return this.containerId; }
+    private async waitFor(cond: () => boolean, ms = 5000): Promise<boolean> {
+        const t0 = Date.now();
+        while (Date.now() - t0 < ms) {
+            if (cond()) return true;
+            await new Promise(r => setTimeout(r, 100));
+        }
+        return false;
+    }
 }

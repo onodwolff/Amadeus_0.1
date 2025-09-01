@@ -1,0 +1,11 @@
+.risk-wrap { display: grid; gap: 10px; }
+.row { display: flex; gap: 8px; align-items: center; }
+.chip { padding: 4px 8px; border-radius: 8px; border: 1px solid #444; background:#1113; }
+.chip.on { border-color: #2ecc71aa; }
+.grid { display:grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.lbl { color:#96a0a9; font-size:12px; }
+.val { font-weight: 700; font-size: 18px; }
+.val.bad { color:#ff6b6b; }
+.muted { color:#9aa0a6; font-size:12px; }
+.err { color:#ff6b6b; }
+@media (max-width:1100px){ .grid { grid-template-columns: repeat(2, 1fr);} }

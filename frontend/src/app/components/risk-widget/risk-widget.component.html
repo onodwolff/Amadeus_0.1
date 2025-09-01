@@ -1,0 +1,41 @@
+<div class="risk-wrap" *ngIf="!loading; else loadTmpl">
+    <div class="row">
+        <div class="chip" [class.on]="data?.enabled">Risk: {{ data?.enabled ? 'ON' : 'OFF' }}</div>
+        <div class="chip" [class.on]="data?.allowed">Entries: {{ data?.allowed ? 'ALLOWED' : 'BLOCKED' }}</div>
+        <button mat-stroked-button (click)="refresh()">Обновить</button>
+        <button mat-stroked-button color="warn" (click)="unlock()">Снять блокировки</button>
+    </div>
+
+    <div class="grid">
+        <div>
+            <div class="lbl">DD (current)</div>
+            <div class="val" [class.bad]="data?.dd_current_pct>0">{{ data?.dd_current_pct | number:'1.1-2' }}%</div>
+        </div>
+        <div>
+            <div class="lbl">DD (max window)</div>
+            <div class="val" [class.bad]="data?.dd_max_window_pct>0">{{ data?.dd_max_window_pct | number:'1.1-2' }}%</div>
+        </div>
+        <div>
+            <div class="lbl">Threshold</div>
+            <div class="val">{{ data?.threshold_pct | number:'1.1-2' }}%</div>
+        </div>
+        <div>
+            <div class="lbl">Points</div>
+            <div class="val">{{ data?.window_points }}</div>
+        </div>
+        <div>
+            <div class="lbl">Window</div>
+            <div class="val">{{ data?.window_sec }}s</div>
+        </div>
+    </div>
+
+    <div class="muted" *ngIf="data?.reason">Reason: {{ data?.reason }}</div>
+    <div class="muted" *ngIf="data?.stop_until">Locked until: {{ (data?.stop_until*1000) | date:'medium' }}</div>
+    <div class="muted" *ngIf="data?.cooldown_until">Cooldown until: {{ (data?.cooldown_until*1000) | date:'medium' }}</div>
+
+    <div *ngIf="err" class="err">{{ err }}</div>
+</div>
+
+<ng-template #loadTmpl>
+    <div class="risk-wrap">Загрузка...</div>
+</ng-template>

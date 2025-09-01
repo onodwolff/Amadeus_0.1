@@ -1,11 +1,9 @@
-.tv-advanced-wrap{
-    width: 100%;
-    min-height: 360px;
+.tv-wrap { position: relative; width:100%; }
+.tv-container { width: 100%; height: 360px; }
+@media (min-height: 900px){ .tv-container { height: 520px; } }
+
+.overlay {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background: #0d0d0fcc; color:#cfd8dc; font-weight:600; border-radius: 6px;
 }
-.tv-advanced-container{
-    width: 100%;
-    height: 360px;
-}
-@media (min-height: 900px){
-    .tv-advanced-container{ height: 520px; }
-}
+.overlay.error { color:#ff8a80; }

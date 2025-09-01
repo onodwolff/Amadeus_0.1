@@ -1,0 +1,11 @@
+<div class="wrap">
+    <div [id]="containerId" class="chart"></div>
+    <div class="row">
+        <div><span class="lbl">Equity</span><b>{{ eqNow  | number:'1.2-2' }}</b></div>
+        <div><span class="lbl">High</span> <b>{{ eqHigh | number:'1.2-2' }}</b></div>
+        <div><span class="lbl">Low</span>  <b>{{ eqLow  | number:'1.2-2' }}</b></div>
+        <div><span class="lbl">DD</span>     <b [class.bad]="ddPct>0">{{ ddPct    | number:'1.1-1' }}%</b></div>
+        <div><span class="lbl">Max DD</span> <b [class.bad]="ddMaxPct>0">{{ ddMaxPct | number:'1.1-1' }}%</b></div>
+        <div><span class="lbl">Pts</span>    <b>{{ points.length }}</b></div>
+    </div>
+</div>

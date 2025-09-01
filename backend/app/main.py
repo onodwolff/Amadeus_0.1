@@ -11,7 +11,7 @@ from .api.routers import config as cfg_router
 from .api.routers import ws as ws_router
 from .api.routers import health as health_router
 from .api.routers import risk as risk_router
-from .api.routers import history as history_router  # ⬅ новый
+from .api.routers import history as history_router
 
 setup_logging(to_console=True)
 
@@ -32,9 +32,5 @@ app.include_router(bot.router)
 app.include_router(scanner.router)
 app.include_router(cfg_router.router)
 app.include_router(ws_router.router)
-app.include_router(risk_router.router)
-app.include_router(history_router.router)  # ⬅ добавили
-
-@app.get("/")
-def root():
-    return {"ok": True, "name": "Amadeus Backend"}
+app.include_router(history_router.router)
+app.include_router(risk_router.router)   # ⬅️ тут

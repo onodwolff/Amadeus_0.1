@@ -8,7 +8,7 @@ from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Optional, Set
 from collections.abc import Mapping
 
-import yaml  # для safe_load конфига
+import yaml
 
 from ..core.config import settings
 from ..models.schemas import BotStatus
@@ -17,21 +17,24 @@ logger = logging.getLogger(__name__)
 
 
 class AppState:
+    """
+    Глобальное состояние приложения: конфиг, клиенты, стратегия, риск-менеджер,
+    история и рассылка событий по WS.
+    """
+
     def __init__(self) -> None:
-        # runtime cfg (yaml + env) берём из settings и НОРМАЛИЗУЕМ в dict
         self.cfg: Dict[str, Any] = self._coerce_cfg(getattr(settings, "runtime_cfg", None))
 
-        # клиенты/стратегия
+        # внешние сервисы/модули (лениво создаются при старте бота)
         self.binance = None   # type: ignore
         self.mm = None        # type: ignore
+        self.history = None   # type: ignore
 
-        # risk manager (ленивое создание)
+        # риск
         self.risk_manager = None  # type: ignore
 
-        # основной async-task
+        # фоновые таски
         self._task: Optional[asyncio.Task] = None
-
-        # доп. фоновые таски
         self._market_task: Optional[asyncio.Task] = None
 
         # WS клиенты
@@ -39,17 +42,11 @@ class AppState:
         self._sent_counter = 0
         self._sent_last_ts = time.time()
 
-        logger.info("Loaded cfg type=%s keys=%s",
-                    type(self.cfg).__name__, list(self.cfg.keys())[:8])
+        logger.info("Loaded cfg type=%s keys=%s", type(self.cfg).__name__, list(self.cfg.keys())[:8])
 
-    # ---------------- Config helpers ----------------
+    # --------------- Config helpers ---------------
     @staticmethod
     def _coerce_cfg(raw: Any) -> Dict[str, Any]:
-        """Превращает любой вход (None/str/mapping/что угодно) в dict.
-        - str -> yaml.safe_load -> dict (если не получилось — положим как _raw)
-        - Mapping -> dict(mapping)
-        - None/прочее -> {}
-        """
         if raw is None:
             return {}
         if isinstance(raw, dict):
@@ -70,22 +67,22 @@ class AppState:
     def set_cfg(self, new_cfg: Any) -> None:
         self.cfg = self._coerce_cfg(new_cfg)
         logger.info("Config updated. keys=%s", list(self.cfg.keys())[:8])
+        if self.risk_manager is not None:
+            from .risk.manager import RiskManager
+            self.risk_manager = RiskManager(self.cfg or {})
 
-    # ---------------- Feature toggles ----------------
+    # --------------- Feature toggles ---------------
     @property
     def risk_enabled(self) -> bool:
-        cfg = self.cfg or {}
-        features = cfg.get("features") or {}
+        features = (self.cfg or {}).get("features") or {}
         return bool(features.get("risk_protections", True))
 
     @property
     def market_widget_feed_enabled(self) -> bool:
-        cfg = self.cfg or {}
-        features = cfg.get("features") or {}
-        # по умолчанию включено
+        features = (self.cfg or {}).get("features") or {}
         return bool(features.get("market_widget_feed", True))
 
-    # ---------------- WS helpers ----------------
+    # --------------- WS helpers ---------------
     def register_ws(self) -> asyncio.Queue[str]:
         q: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
         self._clients.add(q)
@@ -97,10 +94,6 @@ class AppState:
         logger.info("WS disconnected. total=%d", len(self._clients))
 
     def _broadcast_obj(self, obj: Any) -> None:
-        """
-        Отправляет строку (готовый JSON) или dict (сериализуем в JSON).
-        Любые другие типы пытаемся привести к строке/словарю.
-        """
         try:
             if isinstance(obj, dict):
                 data = json.dumps(obj, ensure_ascii=False)
@@ -108,9 +101,9 @@ class AppState:
                 data = obj
             else:
                 if hasattr(obj, "model_dump"):
-                    data = json.dumps(obj.model_dump(), ensure_ascii=False)  # pydantic v2
+                    data = json.dumps(obj.model_dump(), ensure_ascii=False)
                 elif hasattr(obj, "dict"):
-                    data = json.dumps(obj.dict(), ensure_ascii=False)        # pydantic v1
+                    data = json.dumps(obj.dict(), ensure_ascii=False)
                 elif is_dataclass(obj):
                     data = json.dumps(asdict(obj), ensure_ascii=False)
                 elif isinstance(obj, Mapping):
@@ -131,37 +124,34 @@ class AppState:
     def broadcast(self, type_: str, **payload: Any) -> None:
         self._broadcast_obj({"type": type_, **payload})
 
-    # ---------------- Risk hook ----------------
+    # --------------- Risk hooks ---------------
     def _ensure_risk(self):
         if self.risk_manager is None:
             from .risk.manager import RiskManager
             self.risk_manager = RiskManager(self.cfg or {})
 
     def check_risk(self, symbol: Optional[str]) -> tuple[bool, Optional[str]]:
-        """Глобальный хук: вызвать перед созданием любого ордера."""
         if not self.risk_enabled:
             return True, None
         self._ensure_risk()
-        chk = self.risk_manager.can_enter(pair=symbol or None)
-        if chk.allowed:
-            return True, None
-        # сообщим в UI
-        self.broadcast("diag", text=f"ENTRY BLOCKED: {chk.reason or 'risk'}")
-        return False, chk.reason or "risk"
+        allowed, reason = self.risk_manager.can_enter(pair=symbol or None)
+        if not allowed and reason:
+            self.broadcast("diag", text=f"ENTRY BLOCKED: {reason}")
+        return allowed, reason
 
     def on_trade_closed(self, pair: str, pnl: float, stoploss_hit: bool = False):
-        """Сообщить RiskManager о закрытии сделки."""
-        if not self.risk_enabled or self.risk_manager is None:
+        if not self.risk_enabled:
             return
-        self.risk_manager.on_trade_closed(pair=pair, pnl=pnl, stoploss_hit=stoploss_hit)
+        self._ensure_risk()
+        self.risk_manager.on_trade_closed(pnl=pnl)
 
     def on_equity(self, equity_value: float):
-        """Сообщить RiskManager текущее equity для MaxDrawdown."""
-        if not self.risk_enabled or self.risk_manager is None:
+        if not self.risk_enabled:
             return
-        self.risk_manager.on_equity(equity_value=equity_value)
+        self._ensure_risk()
+        self.risk_manager.on_equity(equity_value=float(equity_value))
 
-    # ---------------- Runtime ----------------
+    # --------------- Runtime ---------------
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
 
@@ -176,10 +166,9 @@ class AppState:
         if self.is_running():
             return
 
-        # ленивые импорты
         from .binance_client import BinanceAsync
         from .market_maker import MarketMaker
-        from .history import HistoryStore  # для истории
+        from .history import HistoryStore
 
         cfg = self.cfg
         api = (cfg.get("api") or {})
@@ -189,29 +178,22 @@ class AppState:
         paper = bool(api.get("paper", True))
         shadow_en = bool(api.get("shadow", True))
 
-        # история
+        self._ensure_risk()
         self.history = HistoryStore()
         await self.history.init()
 
-        # бинанс-клиент
         self.binance = BinanceAsync(
             api_key=getattr(settings, "binance_api_key", None),
             api_secret=getattr(settings, "binance_api_secret", None),
             paper=paper,
             shadow=shadow_en,
             shadow_opts=shadow_cfg,
-            events_cb=self.on_event,  # все события централизовано здесь нормализуем
+            events_cb=self.on_event,
             state=self,
         )
 
-        # стратегия
         self.mm = MarketMaker(cfg, client_wrapper=self.binance, events_cb=self.on_event)
 
-        # инициализация RiskManager при старте
-        if self.risk_enabled:
-            self._ensure_risk()
-
-        # запустим фоновый market-bridge для дашборда (bookTicker)
         if self.market_widget_feed_enabled:
             sym = str(strategy.get("symbol") or "BTCUSDT")
             self._market_task = asyncio.create_task(self._market_widget_loop(sym))
@@ -232,7 +214,6 @@ class AppState:
             finally:
                 self._task = None
 
-        # останавливаем market-bridge
         if self._market_task:
             self._market_task.cancel()
             try:
@@ -265,13 +246,12 @@ class AppState:
                     else:
                         await asyncio.sleep(loop_sleep)
                 except Exception as e:
-                    # Подробная диагностика в UI
                     self.broadcast("diag", text=f"ERROR: {e!s}")
                     tb = traceback.format_exc()
                     if tb and len(tb) > 5000:
                         tb = tb[-5000:]
-                    for chunk in tb.splitlines():
-                        self.broadcast("diag", text=chunk)
+                    for line in tb.splitlines():
+                        self.broadcast("diag", text=line)
                     logger.exception("mm loop error: %s", e)
                     await asyncio.sleep(0.5)
 
@@ -288,10 +268,8 @@ class AppState:
         finally:
             await self._close_binance()
 
-    # ----- market bridge: bookTicker → dashboard -----
     async def _market_widget_loop(self, symbol: str):
-        """Фоновая подписка на bookTicker по symbol и рассылка 'market' для дашборда."""
-        await asyncio.sleep(0)  # уступим управление
+        await asyncio.sleep(0)
         sym = (symbol or "BTCUSDT").upper()
         self.broadcast("diag", text=f"MarketBridge start: {sym}")
 
@@ -301,21 +279,17 @@ class AppState:
                     await asyncio.sleep(0.5)
                     continue
 
-                # подписываемся на единичный bookTicker
                 async with self.binance.bm.book_ticker_socket(sym) as stream:
                     while True:
                         msg = await stream.recv()
                         if not isinstance(msg, dict):
                             continue
-                        # ожидаемые поля бинанса
                         s = str(msg.get("s") or sym)
                         b = msg.get("b")
                         a = msg.get("a")
                         p_last = msg.get("c") or msg.get("p")
                         ts = msg.get("E") or int(time.time() * 1000)
-
-                        payload = {"symbol": s, "bestBid": b, "bestAsk": a, "lastPrice": p_last, "ts": ts}
-                        self.broadcast("market", **payload)
+                        self.broadcast("market", symbol=s, bestBid=b, bestAsk=a, lastPrice=p_last, ts=ts)
             except asyncio.CancelledError:
                 self.broadcast("diag", text="MarketBridge: cancelled")
                 break
@@ -324,15 +298,8 @@ class AppState:
                 self.broadcast("diag", text=f"MarketBridge error: {e!s}")
                 await asyncio.sleep(1.5)
 
-    # ----- event bridge из BinanceAsync/MarketMaker -----
     async def on_event(self, evt: Any) -> None:
-        """
-        Унифицируем любое входящее событие к словарю с ключом 'type'.
-        Если пришла строка — пытаемся распарсить как JSON, иначе отправим как diag.
-        Дополнительно: узнаём сырые бинансовые сообщения и трансформируем в 'market'.
-        """
         try:
-            # 1) Строка? Попробуем как JSON, иначе diag
             if isinstance(evt, str):
                 try:
                     parsed = json.loads(evt)
@@ -344,14 +311,12 @@ class AppState:
                 except Exception:
                     self.broadcast("diag", text=str(evt))
                     return
-
-            # 2) Не словарь? Приведём к dict
             elif not isinstance(evt, dict):
                 try:
                     if hasattr(evt, "model_dump"):
-                        evt = evt.model_dump()  # pydantic v2
+                        evt = evt.model_dump()
                     elif hasattr(evt, "dict"):
-                        evt = evt.dict()        # pydantic v1
+                        evt = evt.dict()
                     elif is_dataclass(evt):
                         evt = asdict(evt)
                     elif isinstance(evt, Mapping):
@@ -363,41 +328,49 @@ class AppState:
                     self.broadcast("diag", text=str(evt))
                     return
 
-            # ---- ХУК: equity feed в RiskManager ----
+            # equity → RiskManager
             try:
                 t_tmp = evt.get("type")
                 eq_val = evt.get("equity", None)
                 if t_tmp == "equity" and eq_val is None:
                     eq_val = evt.get("value", None)
                 if eq_val is not None:
-                    try:
-                        self.on_equity(float(eq_val))
-                    except Exception:
-                        pass
+                    self.on_equity(float(eq_val))
             except Exception:
                 pass
 
-            # 3) Определим тип
             t = evt.get("type")
 
-            # 3.1) Если нет type, но это похоже на бинансовый пакет — конвертируем в 'market'
+            # история
+            try:
+                if t == "order_event" and getattr(self, "history", None):
+                    await self.history.log_order_event(evt)
+                elif t in {"trade", "fill"} and getattr(self, "history", None):
+                    await self.history.log_trade(evt)
+                    pnl = float(evt.get("pnl") or 0.0) if isinstance(evt.get("pnl"), (int, float, str)) else 0.0
+                    self.on_trade_closed(pair=str(evt.get("symbol") or ""), pnl=pnl)
+            except Exception:
+                logger.exception("history log failed")
+
+            # прямая трансляция
+            if t in {"market", "bank", "trade", "fill", "order_event", "stats", "diag", "plan"}:
+                self._broadcast_obj(evt)
+                return
+
+            # «сырой» бинанс → market
             if not t and "e" in evt and "s" in evt:
                 etype = str(evt.get("e"))
                 s = str(evt.get("s"))
                 ts = evt.get("E") or int(time.time() * 1000)
-                # bookTicker
                 if etype == "bookTicker" and ("b" in evt or "a" in evt):
                     self.broadcast("market", symbol=s, bestBid=evt.get("b"), bestAsk=evt.get("a"), ts=ts)
                     return
-                # 24hr ticker / mini ticker
                 if etype in ("24hrTicker", "24hrMiniTicker"):
                     self.broadcast("market", symbol=s, lastPrice=evt.get("c"), ts=ts)
                     return
-                # trade / aggTrade
                 if etype in ("trade", "aggTrade"):
                     self.broadcast("market", symbol=s, lastPrice=evt.get("p"), ts=ts)
                     return
-                # depthUpdate (возьмём топ стакана)
                 if etype == "depthUpdate" and (isinstance(evt.get("b"), list) or isinstance(evt.get("a"), list)):
                     try:
                         b0 = evt.get("b")[0][0] if evt.get("b") else None
@@ -410,26 +383,11 @@ class AppState:
                     self.broadcast("market", symbol=s, bestBid=b0, bestAsk=a0, ts=ts)
                     return
 
-            # 4) Обычная маршрутизация по type
             if not t:
-                # если тип не указан — просто выведем объект как текст
                 self.broadcast("diag", text=json.dumps(evt, ensure_ascii=False))
                 return
 
-            # логирование истории
-            try:
-                if t == "order_event" and getattr(self, "history", None):
-                    await self.history.log_order_event(evt)
-                elif t in {"trade", "fill"} and getattr(self, "history", None):
-                    await self.history.log_trade(evt)
-            except Exception:
-                logger.exception("history log failed")
-
-            # трансляция
-            if t in {"market", "bank", "trade", "fill", "order_event", "stats", "diag", "plan"}:
-                self._broadcast_obj(evt)
-                return
-
+            # прочее
             if t in {"ticker", "book", "depth"}:
                 self.broadcast("market", **{k: v for k, v in evt.items() if k != "type"})
             elif t in {"balance", "pnl", "equity"}:
@@ -446,7 +404,6 @@ class AppState:
             except Exception:
                 pass
 
-    # -------- status dto ---------
     def status(self) -> BotStatus:
         m: Dict[str, Any] = {"ws_clients": len(self._clients)}
         if self.mm is not None:
@@ -458,10 +415,14 @@ class AppState:
         return BotStatus(running=self.is_running(), symbol=sym, metrics=m, cfg=self.cfg)
 
 
+# --- синглтон состояния + явный экспорт ---
 _state: Optional[AppState] = None
 
 def get_state() -> AppState:
+    """Единый синглтон AppState (используем в Depends и по месту)."""
     global _state
     if _state is None:
         _state = AppState()
     return _state
+
+__all__ = ["AppState", "get_state"]

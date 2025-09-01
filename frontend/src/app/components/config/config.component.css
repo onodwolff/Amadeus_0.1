@@ -1,1 +1,7 @@
-.row{ margin:4px 0 }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+.muted { color:#9aa0a6; }
+.err { color:#ff6b6b; }
+.cfg {
+    width: 100%; min-height: 400px; background:#0c0f12; color:#dfe6ee;
+    border:1px solid #222; border-radius:8px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}

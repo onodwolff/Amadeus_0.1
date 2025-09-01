@@ -1,62 +1,77 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { AppMaterialModule } from '../../app.module';
 import { ApiService } from '../../services/api.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { FormsModule } from '@angular/forms'; // ⬅️ добавили
 
 @Component({
     selector: 'app-config',
     standalone: true,
-    imports: [CommonModule, FormsModule, AppMaterialModule],
+    imports: [CommonModule, AppMaterialModule, FormsModule], // ⬅️ добавили FormsModule
     templateUrl: './config.component.html',
     styleUrls: ['./config.component.css']
 })
 export class ConfigComponent {
-    cfg: any = { features: { risk_protections: true } };
-    cfgStr = '';
-    loading = false;
-    error = '';
+    text = '{\n}\n';
+    loading = true;
+    err = '';
 
-    constructor(private api: ApiService) {}
+    constructor(private api: ApiService, private snack: MatSnackBar) {}
 
-    ngOnInit(): void { this.load(); }
+    ngOnInit() { this.load(); }
 
     load() {
-        this.loading = true;
+        this.loading = true; this.err = '';
         this.api.getConfig().subscribe({
             next: (res: any) => {
-                const raw = res?.cfg ?? {};
-                // дефолты
-                this.cfg = {
-                    features: { risk_protections: true, ...(raw.features || {}) },
-                    protections: raw.protections || [],
-                    ...raw,
-                };
-                this.cfgStr = JSON.stringify(this.cfg, null, 2);
+                const cfg = res?.cfg ?? {};
+                this.text = JSON.stringify(cfg, null, 2);
                 this.loading = false;
-                this.error = '';
             },
-            error: (err) => { this.error = err?.message ?? 'Ошибка загрузки конфига'; this.loading = false; }
+            error: (e) => {
+                this.err = String(e?.message || e);
+                this.loading = false;
+            }
         });
     }
 
-    toggleRisk() {
-        if (!this.cfg.features) this.cfg.features = {};
-        this.cfg.features.risk_protections = !this.cfg.features.risk_protections;
-        this.cfgStr = JSON.stringify(this.cfg, null, 2);
+    save() {
+        this.err = '';
+        const raw = this.text?.trim();
+        if (!raw) { this.err = 'Нельзя сохранять пустой конфиг.'; return; }
+        let parsed: any = null;
+        try {
+            parsed = JSON.parse(raw);
+        } catch {
+            // отправим как строку — бэкенд сам умеет YAML/JSON
+            parsed = raw;
+        }
+        this.api.putConfig(parsed).subscribe({
+            next: _ => { this.snack.open('Сохранено', 'OK', { duration: 1200 }); this.load(); },
+            error: (e) => { this.err = String(e?.error?.detail || e?.message || e); }
+        });
     }
 
-    save() {
-        try {
-            // если пользователь правит JSON вручную — доверяем ему
-            const parsed = JSON.parse(this.cfgStr);
-            this.loading = true;
-            this.api.putConfig(parsed).subscribe({
-                next: () => { this.loading = false; },
-                error: (err) => { this.error = err?.message ?? 'Ошибка сохранения'; this.loading = false; }
-            });
-        } catch (e:any) {
-            this.error = 'JSON невалиден: ' + (e?.message || e);
-        }
+    loadDefault() {
+        this.api.getDefaultConfig().subscribe({
+            next: (res:any) => { this.text = JSON.stringify(res?.cfg ?? {}, null, 2); },
+            error: (e) => { this.err = String(e?.message || e); }
+        });
+    }
+
+    restoreBackup() {
+        this.api.restoreConfig().subscribe({
+            next: (res:any) => {
+                this.text = JSON.stringify(res?.cfg ?? {}, null, 2);
+                this.snack.open('Откат выполнен', 'OK', { duration: 1200 });
+            },
+            error: (e) => { this.err = String(e?.error?.detail || e?.message || e); }
+        });
+    }
+
+    clearLocal() {
+        try { localStorage.clear(); sessionStorage.clear(); } catch {}
+        this.snack.open('Кэш браузера очищен (local/session).', 'OK', { duration: 1200 });
     }
 }

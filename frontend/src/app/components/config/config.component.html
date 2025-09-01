@@ -1,14 +1,14 @@
-<h3>Конфигурация</h3>
+<div>
+    <div class="row">
+        <button mat-stroked-button color="primary" (click)="load()">Обновить</button>
+        <button mat-stroked-button color="accent" (click)="save()">Сохранить</button>
+        <button mat-stroked-button (click)="loadDefault()">Дефолт</button>
+        <button mat-stroked-button (click)="restoreBackup()">Откат</button>
+        <button mat-stroked-button (click)="clearLocal()">Очистить localStorage</button>
+    </div>
 
-<div style="display:flex;align-items:center;gap:12px;margin:8px 0">
-    <mat-slide-toggle [checked]="cfg?.features?.risk_protections" (change)="toggleRisk()">
-        Risk protections (вкл/выкл)
-    </mat-slide-toggle>
-    <button mat-stroked-button (click)="load()">Обновить</button>
-    <button mat-raised-button color="primary" (click)="save()">Сохранить</button>
+    <div *ngIf="loading" class="muted" style="margin-top:8px">Загрузка…</div>
+    <div *ngIf="err" class="err" style="margin-top:8px">{{ err }}</div>
+
+    <textarea class="cfg" [(ngModel)]="text" rows="26" spellcheck="false"></textarea>
 </div>
-
-<p *ngIf="loading">Загрузка...</p>
-<p *ngIf="error" style="color:#c00">{{error}}</p>
-
-<textarea [(ngModel)]="cfgStr" rows="20" style="width:100%; font-family: monospace;"></textarea>

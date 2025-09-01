@@ -41,14 +41,13 @@ export class ApiService {
   }
 
   // ---------- CONFIG ----------
-  getConfig(): Observable<any> {
-    return this.http.get(`${this.api}/config`);
-  }
-  putConfig(body: any): Observable<any> {
-    return this.http.put(`${this.api}/config`, body);
-  }
+  getConfig() { return this.http.get(`${this.api}/config`); }
+  putConfig(payload: any) { return this.http.put(`${this.api}/config`, payload); }
+  getDefaultConfig() { return this.http.get(`${this.api}/config/default`); }
+  restoreConfig() { return this.http.post(`${this.api}/config/restore`, {}); }
 
-  // ---------- RISK ----------
+
+// ---------- RISK ----------
   getRiskStatus(): Observable<any> {
     return this.http.get(`${this.api}/risk/status`);
   }
