@@ -1,52 +1,81 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatTableModule } from '@angular/material/table';
+import { AppMaterialModule } from '../../app.module';
+import { ApiService, BotStatus } from '../../services/api.service';
 import { WsService } from '../../services/ws.service';
+import { Subscription } from 'rxjs';
+
+interface WsStats { ws_clients: number; ws_rate: number; }
+interface MarketSnap { symbol?: string; bid?: number; ask?: number; last?: number; ts?: number; raw?: any; }
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, MatChipsModule, MatTableModule],
+  imports: [CommonModule, AppMaterialModule],
   templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.css'],
+  styleUrls: ['./dashboard.component.css']
 })
-export class DashboardComponent implements OnInit {
-  market: any = {};
-  bank: any = {};
-  diag = '—';
-  wsRate = 0;
+export class DashboardComponent implements OnDestroy {
+  running = false;
+  symbol = '';
+  metrics: any = {};
+  cfg: any = {};
 
-  displayedColumns = ['side', 'qty', 'price', 'liq', 'ts'];
-  trades: any[] = [];
-  orders: any[] = [];
+  ws: WsStats = { ws_clients: 0, ws_rate: 0 };
+  lastDiag = '';
+  market: MarketSnap = {};
 
-  constructor(public ws: WsService) {}
+  private sub = new Subscription();
 
-  ngOnInit(): void {
-    this.ws.connect();
-    this.ws.stream$.subscribe((evt) => {
-      if (evt.type === 'market') this.market = evt;
-      if (evt.type === 'bank') this.bank = evt;
-      if (evt.type === 'diag') this.diag = evt.text;
-      if (evt.type === 'stats') this.wsRate = evt.ws_rate;
+  constructor(private api: ApiService, private wsSvc: WsService) {
+    this.refreshStatus();
+    this.bindWs();
+  }
 
-      if (evt.type === 'trade' || evt.type === 'fill') {
-        const row = {
-          side: evt.side || (evt.type === 'trade' ? evt.side : '—'),
-          qty: evt.qty || evt.quote,
-          price: evt.price || evt.avg,
-          liq: evt.liq || '—',
-          ts: new Date().toLocaleTimeString(),
-        };
-        this.trades.unshift(row);
-        this.trades = this.trades.slice(0, 40);
-      }
+  ngOnDestroy(): void { this.sub.unsubscribe(); }
 
-      if (evt.type === 'order_event') {
-        this.orders.unshift({ ...evt, ts: new Date().toLocaleTimeString() });
-        this.orders = this.orders.slice(0, 80);
+  refreshStatus() {
+    this.api.status().subscribe({
+      next: (s: BotStatus) => {
+        this.running = !!s?.running;
+        this.symbol = s?.symbol || '';
+        this.metrics = s?.metrics || {};
+        this.cfg = s?.cfg || {};
       }
     });
+  }
+
+  private bindWs() {
+    this.sub.add(
+        this.wsSvc.messages$.subscribe((msg: any) => {
+          if (!msg) return;
+
+          const t = typeof msg === 'object' && msg.type ? msg.type : null;
+
+          if (t === 'stats') {
+            const c = Number(msg.ws_clients ?? 0);
+            const r = Number(msg.ws_rate ?? 0);
+            this.ws = { ws_clients: c, ws_rate: r };
+          } else if (t === 'diag') {
+            const text = String(msg.text ?? '');
+            this.lastDiag = text;
+          } else if (t === 'market') {
+            // Нормализуем возможные поля из depth/ticker
+            const m = msg as any;
+            const sym = (m.symbol || m.s || this.symbol || '').toString();
+            const bid = Number(m.bestBid || m.b || m.bid || m.bp);
+            const ask = Number(m.bestAsk || m.a || m.ask || m.ap);
+            const last = Number(m.lastPrice || m.p || m.last);
+            const ts = Number(m.ts || Date.now());
+            this.market = { symbol: sym, bid: isFinite(bid) ? bid : undefined, ask: isFinite(ask) ? ask : undefined, last: isFinite(last) ? last : undefined, ts, raw: m };
+          } else if (t === 'bank') {
+            // можно вывести equity, pnl и т.д., если шлёте их в событиях
+          } else if (t === 'order_event' || t === 'trade' || t === 'fill') {
+            // тут можно инкрементить счётчики и/или складывать ленту
+            const k = t + '_count';
+            this.metrics[k] = (this.metrics[k] || 0) + 1;
+          }
+        })
+    );
   }
 }

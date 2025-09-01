@@ -1,0 +1,11 @@
+.tv-advanced-wrap{
+    width: 100%;
+    min-height: 360px;
+}
+.tv-advanced-container{
+    width: 100%;
+    height: 360px;
+}
+@media (min-height: 900px){
+    .tv-advanced-container{ height: 520px; }
+}

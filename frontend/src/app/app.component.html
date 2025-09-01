@@ -1,4 +1,3 @@
-<!-- добавил заметную шапку, чтобы всегда был видимый контент -->
 <div style="padding:16px">
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px">
         <div style="font-weight:800; font-size:20px">Amadeus</div>
@@ -10,12 +9,17 @@
         <app-dashboard class="card" style="grid-column: span 2;"></app-dashboard>
     </div>
 
+    <div class="grid grid-3" style="margin-top:12px">
+        <div class="card"><app-guards></app-guards></div>
+        <div class="card" style="grid-column: span 2;">
+            <app-tv-advanced></app-tv-advanced>
+        </div>
+    </div>
+
     <div class="grid grid-2" style="margin-top:12px">
         <app-logs class="card"></app-logs>
         <div class="card">
-            <h3>Сканер пар</h3>
-            <p>Нажми «Сканировать» в блоке Управление. Результаты появятся здесь.</p>
-            <div id="scanner-results"></div>
+            <app-config></app-config>
         </div>
     </div>
 </div>

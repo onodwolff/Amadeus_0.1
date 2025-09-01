@@ -1,1 +1,18 @@
+.log-wrap {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    max-height: 360px;
+    overflow: auto;
+    background: #0d0d0d;
+    color: #ddd;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #222;
+}
+.log-row { display: grid; grid-template-columns: 84px 70px 1fr; gap: 8px; padding: 2px 0; }
+.ts { color: #9aa0a6; }
+.type { color: #a0cfff; text-transform: uppercase; }
+.type.diag { color: #ffd166; }
+.msg { white-space: pre-wrap; word-break: break-word; }
 /* logs style in global */

@@ -1,4 +1,12 @@
-<h3>Логи / Диагностика</h3>
-<div style="max-height:300px; overflow:auto; font-family:ui-monospace, monospace; font-size:12px">
-  <div *ngFor="let r of rows">[{{r.ts}}] {{ r.evt.type }} — {{ r.evt | json }}</div>
+<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
+    <b>Logs</b>
+    <button mat-stroked-button (click)="clear()">Очистить</button>
+</div>
+
+<div class="log-wrap">
+    <div *ngFor="let it of items" class="log-row">
+        <span class="ts">{{ it.ts | date:'mediumTime' }}</span>
+        <span class="type" [class.diag]="it.type==='diag'">{{ it.type }}</span>
+        <span class="msg">{{ it.text }}</span>
+    </div>
 </div>

@@ -1,0 +1,14 @@
+<h3>Конфигурация</h3>
+
+<div style="display:flex;align-items:center;gap:12px;margin:8px 0">
+    <mat-slide-toggle [checked]="cfg?.features?.risk_protections" (change)="toggleRisk()">
+        Risk protections (вкл/выкл)
+    </mat-slide-toggle>
+    <button mat-stroked-button (click)="load()">Обновить</button>
+    <button mat-raised-button color="primary" (click)="save()">Сохранить</button>
+</div>
+
+<p *ngIf="loading">Загрузка...</p>
+<p *ngIf="error" style="color:#c00">{{error}}</p>
+
+<textarea [(ngModel)]="cfgStr" rows="20" style="width:100%; font-family: monospace;"></textarea>

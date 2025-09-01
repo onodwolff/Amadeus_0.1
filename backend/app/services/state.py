@@ -2,104 +2,343 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
+import traceback
+from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, Optional, Set
+from collections.abc import Mapping
+
+import yaml  # для safe_load конфига
+
 from ..core.config import settings
 from ..models.schemas import BotStatus
 
 logger = logging.getLogger(__name__)
 
-class AppState:
-    def __init__(self):
-        self.cfg: Dict[str, Any] = settings.runtime_cfg
-        self.binance = None
-        self.mm = None
-        self._task: Optional[asyncio.Task] = None
-        self._ws_clients: Set[asyncio.Queue[str]] = set()
-        self._events: asyncio.Queue[dict] = asyncio.Queue()
 
+class AppState:
+    def __init__(self) -> None:
+        # runtime cfg (yaml + env) берём из settings и НОРМАЛИЗУЕМ в dict
+        self.cfg: Dict[str, Any] = self._coerce_cfg(getattr(settings, "runtime_cfg", None))
+
+        # клиенты/стратегия
+        self.binance = None   # type: ignore
+        self.mm = None        # type: ignore
+
+        # risk manager (ленивое создание)
+        self.risk_manager = None  # type: ignore
+
+        # основной async-task
+        self._task: Optional[asyncio.Task] = None
+
+        # WS клиенты
+        self._clients: Set[asyncio.Queue[str]] = set()
+        self._sent_counter = 0
+        self._sent_last_ts = time.time()
+
+        logger.info("Loaded cfg type=%s keys=%s",
+                    type(self.cfg).__name__, list(self.cfg.keys())[:8])
+
+    # ---------------- Config helpers ----------------
+    @staticmethod
+    def _coerce_cfg(raw: Any) -> Dict[str, Any]:
+        """Превращает любой вход (None/str/mapping/что угодно) в dict.
+        - str -> yaml.safe_load -> dict (если не получилось — положим как _raw)
+        - Mapping -> dict(mapping)
+        - None/прочее -> {}
+        """
+        if raw is None:
+            return {}
+        if isinstance(raw, dict):
+            return raw
+        if isinstance(raw, Mapping):
+            return dict(raw)
+        if isinstance(raw, str):
+            try:
+                data = yaml.safe_load(raw) or {}
+                if isinstance(data, dict):
+                    return data
+                # если это список/число и т.п. — завернём как _raw
+                return {"_raw": raw, "_parsed": data}
+            except Exception as e:
+                logger.warning("cfg safe_load failed: %s", e)
+                return {"_raw": raw}
+        # всё прочее игнорируем
+        return {}
+
+    def set_cfg(self, new_cfg: Any) -> None:
+        self.cfg = self._coerce_cfg(new_cfg)
+        logger.info("Config updated. keys=%s", list(self.cfg.keys())[:8])
+
+    # ---------------- Feature toggles ----------------
+    @property
+    def risk_enabled(self) -> bool:
+        cfg = self.cfg or {}
+        features = cfg.get("features") or {}
+        return bool(features.get("risk_protections", True))
+
+    # ---------------- WS helpers ----------------
     def register_ws(self) -> asyncio.Queue[str]:
-        q: asyncio.Queue[str] = asyncio.Queue()
-        self._ws_clients.add(q)
+        q: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
+        self._clients.add(q)
+        logger.info("WS connected. total=%d", len(self._clients))
         return q
 
-    def unregister_ws(self, q: asyncio.Queue[str]):
-        self._ws_clients.discard(q)
+    def unregister_ws(self, q: asyncio.Queue[str]) -> None:
+        self._clients.discard(q)
+        logger.info("WS disconnected. total=%d", len(self._clients))
 
-    async def publish(self, event: dict):
-        await self._events.put(event)
+    def _broadcast_obj(self, obj: Any) -> None:
+        """
+        Отправляет строку (готовый JSON) или dict (сериализуем в JSON).
+        Любые другие типы пытаемся привести к строке/словарю.
+        """
+        try:
+            if isinstance(obj, dict):
+                data = json.dumps(obj, ensure_ascii=False)
+            elif isinstance(obj, str):
+                data = obj
+            else:
+                if hasattr(obj, "model_dump"):
+                    data = json.dumps(obj.model_dump(), ensure_ascii=False)  # pydantic v2
+                elif hasattr(obj, "dict"):
+                    data = json.dumps(obj.dict(), ensure_ascii=False)        # pydantic v1
+                elif is_dataclass(obj):
+                    data = json.dumps(asdict(obj), ensure_ascii=False)
+                elif isinstance(obj, Mapping):
+                    data = json.dumps(dict(obj), ensure_ascii=False)
+                else:
+                    data = str(obj)
+        except Exception:
+            logger.exception("Failed to serialize broadcast obj, sending as text")
+            data = str(obj)
 
-    async def _broadcast_loop(self):
-        while True:
-            evt = await self._events.get()
-            data = json.dumps(evt, ensure_ascii=False)
-            for q in list(self._ws_clients):
-                try:
-                    await q.put(data)
-                except Exception:
-                    pass
+        for q in list(self._clients):
+            try:
+                q.put_nowait(data)
+                self._sent_counter += 1
+            except asyncio.QueueFull:
+                self._clients.discard(q)
 
+    def broadcast(self, type_: str, **payload: Any) -> None:
+        self._broadcast_obj({"type": type_, **payload})
+
+    # ---------------- Risk hook ----------------
+    def _ensure_risk(self):
+        if self.risk_manager is None:
+            from .risk.manager import RiskManager
+            self.risk_manager = RiskManager(self.cfg or {})
+
+    def check_risk(self, symbol: Optional[str]) -> tuple[bool, Optional[str]]:
+        """Глобальный хук: вызвать перед созданием любого ордера."""
+        if not self.risk_enabled:
+            return True, None
+        self._ensure_risk()
+        chk = self.risk_manager.can_enter(pair=symbol or None)
+        if chk.allowed:
+            return True, None
+        # сообщим в UI
+        self.broadcast("diag", text=f"ENTRY BLOCKED: {chk.reason or 'risk'}")
+        return False, chk.reason or "risk"
+
+    def on_trade_closed(self, pair: str, pnl: float, stoploss_hit: bool = False):
+        """Сообщить RiskManager о закрытии сделки."""
+        if not self.risk_enabled or self.risk_manager is None:
+            return
+        self.risk_manager.on_trade_closed(pair=pair, pnl=pnl, stoploss_hit=stoploss_hit)
+
+    def on_equity(self, equity_value: float):
+        """Сообщить RiskManager текущее equity для MaxDrawdown."""
+        if not self.risk_enabled or self.risk_manager is None:
+            return
+        self.risk_manager.on_equity(equity_value=equity_value)
+
+    # ---------------- Runtime ----------------
     def is_running(self) -> bool:
         return self._task is not None and not self._task.done()
 
-    async def start_bot(self):
+    async def _close_binance(self) -> None:
+        try:
+            if self.binance and hasattr(self.binance, "close"):
+                await self.binance.close()
+        except Exception as e:
+            logger.warning("binance close error: %s", e)
+
+    async def start_bot(self) -> None:
         if self.is_running():
             return
+
+        # ленивые импорты
         from .binance_client import BinanceAsync
         from .market_maker import MarketMaker
 
-        shadow_cfg = self.cfg.get("shadow", {}) or {}
-        api = self.cfg.get("api", {}) or {}
+        cfg = self.cfg  # уже dict
+        api = (cfg.get("api") or {})
+        strategy = (cfg.get("strategy") or {})
+        shadow_cfg = (cfg.get("shadow") or {})
+
         paper = bool(api.get("paper", True))
+        shadow_en = bool(api.get("shadow", True))
 
-        self.binance = await BinanceAsync(
-            None, None,
-            paper=paper, shadow=bool(shadow_cfg.get("enabled", True)),
-            shadow_opts=shadow_cfg, events_cb=self.publish
-        ).create()
+        # бинанс-клиент получает ссылку на state для риск-проверки
+        self.binance = BinanceAsync(
+            api_key=getattr(settings, "binance_api_key", None),
+            api_secret=getattr(settings, "binance_api_secret", None),
+            paper=paper,
+            shadow=shadow_en,
+            shadow_opts=shadow_cfg,
+            events_cb=self.on_event,  # все события централизовано здесь нормализуем
+            state=self,
+        )
 
-        self.mm = MarketMaker(self.cfg, self.binance, events_cb=self.publish)
-        loop = asyncio.get_event_loop()
-        self._task = loop.create_task(self.mm.run())
-        loop.create_task(self._broadcast_loop())
+        # стратегия
+        self.mm = MarketMaker(cfg, client_wrapper=self.binance, events_cb=self.on_event)
 
-    async def stop_bot(self):
+        # инициализация RiskManager при старте
+        if self.risk_enabled:
+            self._ensure_risk()
+
+        self._task = asyncio.create_task(self._run_loop())
+        self.broadcast("diag", text="STARTED")
+        logger.info("bot started")
+
+    async def stop_bot(self) -> None:
+        if not self.is_running():
+            return
         if self._task:
             self._task.cancel()
             try:
                 await self._task
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._task = None
+
+        await self._close_binance()
+        self.mm = None
+        self.broadcast("diag", text="STOPPED")
+        logger.info("bot stopped")
+
+    async def _run_loop(self) -> None:
+        cfg = self.cfg
+        loop_sleep = float((cfg.get("strategy") or {}).get("loop_sleep", 0.2))
+        stats_interval = 1.0
+        last_stats = time.time()
+
+        self.broadcast("stats", ws_clients=len(self._clients), ws_rate=0.0)
+
+        try:
+            while True:
+                try:
+                    if hasattr(self.mm, "step"):
+                        await self.mm.step()
+                    elif hasattr(self.mm, "run"):
+                        await self.mm.run()
+                    else:
+                        await asyncio.sleep(loop_sleep)
+                except Exception as e:
+                    # Подробная диагностика в UI
+                    self.broadcast("diag", text=f"ERROR: {e!s}")
+                    tb = traceback.format_exc()
+                    # чтобы не заваливать UI, обрежем очень длинные трассировки
+                    if tb and len(tb) > 5000:
+                        tb = tb[-5000:]
+                    # отправим несколькими фрагментами построчно
+                    for chunk in tb.splitlines():
+                        self.broadcast("diag", text=chunk)
+                    logger.exception("mm loop error: %s", e)
+                    await asyncio.sleep(0.5)
+
+                now = time.time()
+                if now - last_stats >= stats_interval:
+                    elapsed = now - self._sent_last_ts
+                    rate = (self._sent_counter / elapsed) if elapsed > 0 else 0.0
+                    self._sent_counter = 0
+                    self._sent_last_ts = now
+                    last_stats = now
+                    self.broadcast("stats", ws_clients=len(self._clients), ws_rate=round(rate, 2))
+
+                await asyncio.sleep(loop_sleep)
+        finally:
+            await self._close_binance()
+
+    # ----- event bridge из BinanceAsync/MarketMaker -----
+    async def on_event(self, evt: Any) -> None:
+        """
+        Унифицируем любое входящее событие к словарю с ключом 'type'.
+        Если пришла строка — пытаемся распарсить как JSON, иначе отправим как diag.
+        """
+        try:
+            # 1) Строка? Попробуем как JSON, иначе diag
+            if isinstance(evt, str):
+                try:
+                    parsed = json.loads(evt)
+                    if isinstance(parsed, dict):
+                        evt = parsed
+                    else:
+                        self.broadcast("diag", text=str(evt))
+                        return
+                except Exception:
+                    self.broadcast("diag", text=str(evt))
+                    return
+
+            # 2) Не словарь? Приведём к dict
+            elif not isinstance(evt, dict):
+                try:
+                    if hasattr(evt, "model_dump"):
+                        evt = evt.model_dump()  # pydantic v2
+                    elif hasattr(evt, "dict"):
+                        evt = evt.dict()        # pydantic v1
+                    elif is_dataclass(evt):
+                        evt = asdict(evt)
+                    elif isinstance(evt, Mapping):
+                        evt = dict(evt)
+                    else:
+                        self.broadcast("diag", text=str(evt))
+                        return
+                except Exception:
+                    self.broadcast("diag", text=str(evt))
+                    return
+
+            # 3) Теперь evt — словарь
+            t = evt.get("type")
+            if not t:
+                self.broadcast("diag", text=json.dumps(evt, ensure_ascii=False))
+                return
+
+            # 4) Нормализуем типы и шлём дальше
+            if t in {"market", "bank", "trade", "fill", "order_event", "stats", "diag", "plan"}:
+                self._broadcast_obj(evt)
+                return
+
+            if t in {"ticker", "book", "depth"}:
+                self.broadcast("market", **{k: v for k, v in evt.items() if k != "type"})
+            elif t in {"balance", "pnl", "equity"}:
+                self.broadcast("bank", **{k: v for k, v in evt.items() if k != "type"})
+            elif t in {"log", "debug"}:
+                self.broadcast("diag", text=str(evt.get("msg") or evt.get("text") or ""))
+            else:
+                # неизвестный тип — просто пробросим как есть
+                self._broadcast_obj(evt)
+
+        except Exception:
+            logger.exception("on_event failed")
+            try:
+                self.broadcast("diag", text="on_event: internal exception")
             except Exception:
                 pass
-            self._task = None
-        try:
-            if self.binance:
-                await self.binance.close()
-        finally:
-            self.binance = None
-            self.mm = None
 
+    # -------- status dto ---------
     def status(self) -> BotStatus:
-        m = {}
-        if self.mm:
-            m = {
-                "ws_rate": getattr(self.mm, "_computed_ws_rate", 0.0),
-                "trades": {
-                    "total": self.mm.trades_total,
-                    "buy": self.mm.trades_buy,
-                    "sell": self.mm.trades_sell,
-                    "maker": self.mm.trades_maker,
-                    "taker": self.mm.trades_taker,
-                },
-                "orders": {
-                    "created": self.mm.orders_created_total,
-                    "canceled": self.mm.orders_canceled_total,
-                    "rejected": self.mm.orders_rejected_total,
-                    "filled": self.mm.orders_filled_total,
-                    "expired": self.mm.orders_expired_total,
-                    "active": len(self.mm.open_orders),
-                },
-            }
-        sym = self.mm.symbol if self.mm else (self.cfg.get("strategy", {}) or {}).get("symbol")
+        m: Dict[str, Any] = {"ws_clients": len(self._clients)}
+        if self.mm is not None:
+            for key in ("ticks_total", "orders_total", "orders_active", "orders_filled", "orders_expired"):
+                val = getattr(self.mm, key, None)
+                if val is not None:
+                    m[key] = val
+        sym = getattr(self.mm, "symbol", None) if self.mm else (self.cfg.get("strategy") or {}).get("symbol")
         return BotStatus(running=self.is_running(), symbol=sym, metrics=m, cfg=self.cfg)
+
 
 _state: Optional[AppState] = None
 

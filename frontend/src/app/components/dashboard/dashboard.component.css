@@ -1,1 +1,19 @@
 /* dashboard styles rely on global styles */
+.grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+.cell {
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    padding: 10px;
+    background: #1112;
+}
+.label { font-size: 12px; color: #888; text-transform: uppercase; }
+.value { font-size: 22px; font-weight: 700; margin: 2px 0 4px; }
+.value.on { color: #2ecc71; }
+.value.off { color: #e74c3c; }
+.muted { color: #999; font-size: 12px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; word-break: break-word; }
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
