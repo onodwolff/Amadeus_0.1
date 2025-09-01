@@ -1,0 +1,62 @@
+<h3>History</h3>
+
+<div class="row">
+    <div>
+        <b>Orders:</b> {{ stats?.orders ?? 0 }}
+        <button mat-stroked-button (click)="refreshOrders()">Обновить</button>
+        <button mat-stroked-button (click)="export('orders')">Export CSV</button>
+        <button mat-button color="warn" (click)="clear('orders')">Очистить</button>
+    </div>
+    <div>
+        <b>Trades:</b> {{ stats?.trades ?? 0 }}
+        <button mat-stroked-button (click)="refreshTrades()">Обновить</button>
+        <button mat-stroked-button (click)="export('trades')">Export CSV</button>
+        <button mat-button color="warn" (click)="clear('trades')">Очистить</button>
+    </div>
+    <div>
+        <button mat-raised-button color="primary" (click)="clear('all')">Очистить всё</button>
+    </div>
+</div>
+
+<div class="two">
+    <div>
+        <h4>Orders (последние)</h4>
+        <div *ngIf="loadingO">Загрузка...</div>
+        <table *ngIf="!loadingO">
+            <tr>
+                <th>ID</th><th>TS</th><th>Event</th><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th>Status</th>
+            </tr>
+            <tr *ngFor="let o of orders">
+                <td>{{o.id}}</td>
+                <td>{{o.ts*1000 | date:'medium'}}</td>
+                <td>{{o.event}}</td>
+                <td>{{o.symbol}}</td>
+                <td>{{o.side}}</td>
+                <td>{{o.type}}</td>
+                <td>{{o.price}}</td>
+                <td>{{o.qty}}</td>
+                <td>{{o.status}}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div>
+        <h4>Trades (последние)</h4>
+        <div *ngIf="loadingT">Загрузка...</div>
+        <table *ngIf="!loadingT">
+            <tr>
+                <th>ID</th><th>TS</th><th>Type</th><th>Symbol</th><th>Side</th><th>Price</th><th>Qty</th><th>PNL</th>
+            </tr>
+            <tr *ngFor="let t of trades">
+                <td>{{t.id}}</td>
+                <td>{{t.ts*1000 | date:'medium'}}</td>
+                <td>{{t.type}}</td>
+                <td>{{t.symbol}}</td>
+                <td>{{t.side}}</td>
+                <td>{{t.price}}</td>
+                <td>{{t.qty}}</td>
+                <td>{{t.pnl}}</td>
+            </tr>
+        </table>
+    </div>
+</div>

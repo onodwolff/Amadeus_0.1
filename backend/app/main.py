@@ -5,19 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.config import settings
 from .core.logging import setup_logging
 
-# Routers
 from .api.routers import bot
 from .api.routers import scanner
 from .api.routers import config as cfg_router
 from .api.routers import ws as ws_router
 from .api.routers import health as health_router
-from .api.routers import risk as risk_router  # ⬅ добавили
+from .api.routers import risk as risk_router
+from .api.routers import history as history_router  # ⬅ новый
 
 setup_logging(to_console=True)
 
 app = FastAPI(title="Amadeus Backend", version="1.0")
 
-# CORS — берём из ENV/конфига, иначе '*'
 origins_raw = settings.app_origins or "*"
 origins = [o.strip() for o in origins_raw.split(",")] if origins_raw else ["*"]
 app.add_middleware(
@@ -28,13 +27,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключение маршрутов
 app.include_router(health_router.router)
 app.include_router(bot.router)
 app.include_router(scanner.router)
 app.include_router(cfg_router.router)
 app.include_router(ws_router.router)
-app.include_router(risk_router.router)  # ⬅ новый роутер
+app.include_router(risk_router.router)
+app.include_router(history_router.router)  # ⬅ добавили
 
 @app.get("/")
 def root():

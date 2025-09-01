@@ -1,0 +1,3 @@
+.lw-wrap { width: 100%; }
+.lw-container { width: 100%; height: 360px; }
+@media (min-height: 900px){ .lw-container { height: 520px; } }

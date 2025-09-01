@@ -11,49 +11,65 @@ export interface BotStatus {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private get api(): string {
-    return (window as any).__API__ as string;
-  }
-  private get ws(): string {
-    return (window as any).__WS__ as string;
-  }
-
   constructor(private http: HttpClient) {}
 
-  // ---- BOT ----
+  /** REST base, прокидывается через window.__API__ в index.html */
+  private get api(): string {
+    const v = (window as any).__API__;
+    return typeof v === 'string' && v.length ? v : 'http://127.0.0.1:8100';
+  }
+  /** WS base, если где-то нужно */
+  private get ws(): string {
+    const v = (window as any).__WS__;
+    return typeof v === 'string' && v.length ? v : 'ws://127.0.0.1:8100/ws';
+  }
+
+  // ---------- BOT ----------
   status(): Observable<BotStatus> {
     return this.http.get<BotStatus>(`${this.api}/bot/status`);
   }
-
   start(): Observable<any> {
     return this.http.post(`${this.api}/bot/start`, {});
   }
-
   stop(): Observable<any> {
     return this.http.post(`${this.api}/bot/stop`, {});
   }
 
-  // ---- SCANNER ----
-  // При необходимости передай payload, иначе отправится пустой объект
+  // ---------- SCANNER ----------
   scan(payload: any = {}): Observable<any> {
     return this.http.post(`${this.api}/scanner/scan`, payload);
   }
 
-  // ---- CONFIG ----
+  // ---------- CONFIG ----------
   getConfig(): Observable<any> {
     return this.http.get(`${this.api}/config`);
   }
-
   putConfig(body: any): Observable<any> {
     return this.http.put(`${this.api}/config`, body);
   }
 
-  // ---- RISK ----
+  // ---------- RISK ----------
   getRiskStatus(): Observable<any> {
     return this.http.get(`${this.api}/risk/status`);
   }
-
   unlockRisk(): Observable<any> {
     return this.http.post(`${this.api}/risk/unlock`, {});
+  }
+
+  // ---------- HISTORY ----------
+  historyOrders(limit = 200, offset = 0): Observable<any> {
+    return this.http.get(`${this.api}/history/orders?limit=${limit}&offset=${offset}`);
+  }
+  historyTrades(limit = 200, offset = 0): Observable<any> {
+    return this.http.get(`${this.api}/history/trades?limit=${limit}&offset=${offset}`);
+  }
+  historyStats(): Observable<any> {
+    return this.http.get(`${this.api}/history/stats`);
+  }
+  historyClear(kind: 'orders' | 'trades' | 'all' = 'all'): Observable<any> {
+    return this.http.post(`${this.api}/history/clear?kind=${kind}`, {});
+  }
+  historyExportUrl(kind: 'orders' | 'trades' = 'orders'): string {
+    return `${this.api}/history/export.csv?kind=${kind}`;
   }
 }

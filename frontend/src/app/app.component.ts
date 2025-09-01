@@ -4,7 +4,8 @@ import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { LogsComponent } from './components/logs/logs.component';
 import { ConfigComponent } from './components/config/config.component';
 import { GuardsComponent } from './components/guards/guards.component';
-import { TvAdvancedComponent } from './components/tv-advanced/tv-advanced.component';
+import { ChartHostComponent } from './components/chart-host/chart-host.component';
+import { HistoryComponent } from './components/history/history.component';
 
 @Component({
   selector: 'app-root',
@@ -15,7 +16,8 @@ import { TvAdvancedComponent } from './components/tv-advanced/tv-advanced.compon
     LogsComponent,
     ConfigComponent,
     GuardsComponent,
-    TvAdvancedComponent
+    ChartHostComponent,   // ⬅️ тут хост, он сам подгружает нужный чарт
+    HistoryComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']

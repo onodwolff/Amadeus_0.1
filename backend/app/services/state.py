@@ -31,6 +31,9 @@ class AppState:
         # основной async-task
         self._task: Optional[asyncio.Task] = None
 
+        # доп. фоновые таски
+        self._market_task: Optional[asyncio.Task] = None
+
         # WS клиенты
         self._clients: Set[asyncio.Queue[str]] = set()
         self._sent_counter = 0
@@ -58,12 +61,10 @@ class AppState:
                 data = yaml.safe_load(raw) or {}
                 if isinstance(data, dict):
                     return data
-                # если это список/число и т.п. — завернём как _raw
                 return {"_raw": raw, "_parsed": data}
             except Exception as e:
                 logger.warning("cfg safe_load failed: %s", e)
                 return {"_raw": raw}
-        # всё прочее игнорируем
         return {}
 
     def set_cfg(self, new_cfg: Any) -> None:
@@ -76,6 +77,13 @@ class AppState:
         cfg = self.cfg or {}
         features = cfg.get("features") or {}
         return bool(features.get("risk_protections", True))
+
+    @property
+    def market_widget_feed_enabled(self) -> bool:
+        cfg = self.cfg or {}
+        features = cfg.get("features") or {}
+        # по умолчанию включено
+        return bool(features.get("market_widget_feed", True))
 
     # ---------------- WS helpers ----------------
     def register_ws(self) -> asyncio.Queue[str]:
@@ -171,8 +179,9 @@ class AppState:
         # ленивые импорты
         from .binance_client import BinanceAsync
         from .market_maker import MarketMaker
+        from .history import HistoryStore  # для истории
 
-        cfg = self.cfg  # уже dict
+        cfg = self.cfg
         api = (cfg.get("api") or {})
         strategy = (cfg.get("strategy") or {})
         shadow_cfg = (cfg.get("shadow") or {})
@@ -180,7 +189,11 @@ class AppState:
         paper = bool(api.get("paper", True))
         shadow_en = bool(api.get("shadow", True))
 
-        # бинанс-клиент получает ссылку на state для риск-проверки
+        # история
+        self.history = HistoryStore()
+        await self.history.init()
+
+        # бинанс-клиент
         self.binance = BinanceAsync(
             api_key=getattr(settings, "binance_api_key", None),
             api_secret=getattr(settings, "binance_api_secret", None),
@@ -198,6 +211,11 @@ class AppState:
         if self.risk_enabled:
             self._ensure_risk()
 
+        # запустим фоновый market-bridge для дашборда (bookTicker)
+        if self.market_widget_feed_enabled:
+            sym = str(strategy.get("symbol") or "BTCUSDT")
+            self._market_task = asyncio.create_task(self._market_widget_loop(sym))
+
         self._task = asyncio.create_task(self._run_loop())
         self.broadcast("diag", text="STARTED")
         logger.info("bot started")
@@ -213,6 +231,16 @@ class AppState:
                 pass
             finally:
                 self._task = None
+
+        # останавливаем market-bridge
+        if self._market_task:
+            self._market_task.cancel()
+            try:
+                await self._market_task
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._market_task = None
 
         await self._close_binance()
         self.mm = None
@@ -240,10 +268,8 @@ class AppState:
                     # Подробная диагностика в UI
                     self.broadcast("diag", text=f"ERROR: {e!s}")
                     tb = traceback.format_exc()
-                    # чтобы не заваливать UI, обрежем очень длинные трассировки
                     if tb and len(tb) > 5000:
                         tb = tb[-5000:]
-                    # отправим несколькими фрагментами построчно
                     for chunk in tb.splitlines():
                         self.broadcast("diag", text=chunk)
                     logger.exception("mm loop error: %s", e)
@@ -262,11 +288,48 @@ class AppState:
         finally:
             await self._close_binance()
 
+    # ----- market bridge: bookTicker → dashboard -----
+    async def _market_widget_loop(self, symbol: str):
+        """Фоновая подписка на bookTicker по symbol и рассылка 'market' для дашборда."""
+        await asyncio.sleep(0)  # уступим управление
+        sym = (symbol or "BTCUSDT").upper()
+        self.broadcast("diag", text=f"MarketBridge start: {sym}")
+
+        while True:
+            try:
+                if not self.binance or not getattr(self.binance, "bm", None):
+                    await asyncio.sleep(0.5)
+                    continue
+
+                # подписываемся на единичный bookTicker
+                async with self.binance.bm.book_ticker_socket(sym) as stream:
+                    while True:
+                        msg = await stream.recv()
+                        if not isinstance(msg, dict):
+                            continue
+                        # ожидаемые поля бинанса
+                        s = str(msg.get("s") or sym)
+                        b = msg.get("b")
+                        a = msg.get("a")
+                        p_last = msg.get("c") or msg.get("p")
+                        ts = msg.get("E") or int(time.time() * 1000)
+
+                        payload = {"symbol": s, "bestBid": b, "bestAsk": a, "lastPrice": p_last, "ts": ts}
+                        self.broadcast("market", **payload)
+            except asyncio.CancelledError:
+                self.broadcast("diag", text="MarketBridge: cancelled")
+                break
+            except Exception as e:
+                logger.warning("MarketBridge error: %s", e)
+                self.broadcast("diag", text=f"MarketBridge error: {e!s}")
+                await asyncio.sleep(1.5)
+
     # ----- event bridge из BinanceAsync/MarketMaker -----
     async def on_event(self, evt: Any) -> None:
         """
         Унифицируем любое входящее событие к словарю с ключом 'type'.
         Если пришла строка — пытаемся распарсить как JSON, иначе отправим как diag.
+        Дополнительно: узнаём сырые бинансовые сообщения и трансформируем в 'market'.
         """
         try:
             # 1) Строка? Попробуем как JSON, иначе diag
@@ -300,13 +363,69 @@ class AppState:
                     self.broadcast("diag", text=str(evt))
                     return
 
-            # 3) Теперь evt — словарь
+            # ---- ХУК: equity feed в RiskManager ----
+            try:
+                t_tmp = evt.get("type")
+                eq_val = evt.get("equity", None)
+                if t_tmp == "equity" and eq_val is None:
+                    eq_val = evt.get("value", None)
+                if eq_val is not None:
+                    try:
+                        self.on_equity(float(eq_val))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            # 3) Определим тип
             t = evt.get("type")
+
+            # 3.1) Если нет type, но это похоже на бинансовый пакет — конвертируем в 'market'
+            if not t and "e" in evt and "s" in evt:
+                etype = str(evt.get("e"))
+                s = str(evt.get("s"))
+                ts = evt.get("E") or int(time.time() * 1000)
+                # bookTicker
+                if etype == "bookTicker" and ("b" in evt or "a" in evt):
+                    self.broadcast("market", symbol=s, bestBid=evt.get("b"), bestAsk=evt.get("a"), ts=ts)
+                    return
+                # 24hr ticker / mini ticker
+                if etype in ("24hrTicker", "24hrMiniTicker"):
+                    self.broadcast("market", symbol=s, lastPrice=evt.get("c"), ts=ts)
+                    return
+                # trade / aggTrade
+                if etype in ("trade", "aggTrade"):
+                    self.broadcast("market", symbol=s, lastPrice=evt.get("p"), ts=ts)
+                    return
+                # depthUpdate (возьмём топ стакана)
+                if etype == "depthUpdate" and (isinstance(evt.get("b"), list) or isinstance(evt.get("a"), list)):
+                    try:
+                        b0 = evt.get("b")[0][0] if evt.get("b") else None
+                    except Exception:
+                        b0 = None
+                    try:
+                        a0 = evt.get("a")[0][0] if evt.get("a") else None
+                    except Exception:
+                        a0 = None
+                    self.broadcast("market", symbol=s, bestBid=b0, bestAsk=a0, ts=ts)
+                    return
+
+            # 4) Обычная маршрутизация по type
             if not t:
+                # если тип не указан — просто выведем объект как текст
                 self.broadcast("diag", text=json.dumps(evt, ensure_ascii=False))
                 return
 
-            # 4) Нормализуем типы и шлём дальше
+            # логирование истории
+            try:
+                if t == "order_event" and getattr(self, "history", None):
+                    await self.history.log_order_event(evt)
+                elif t in {"trade", "fill"} and getattr(self, "history", None):
+                    await self.history.log_trade(evt)
+            except Exception:
+                logger.exception("history log failed")
+
+            # трансляция
             if t in {"market", "bank", "trade", "fill", "order_event", "stats", "diag", "plan"}:
                 self._broadcast_obj(evt)
                 return
@@ -318,7 +437,6 @@ class AppState:
             elif t in {"log", "debug"}:
                 self.broadcast("diag", text=str(evt.get("msg") or evt.get("text") or ""))
             else:
-                # неизвестный тип — просто пробросим как есть
                 self._broadcast_obj(evt)
 
         except Exception:
