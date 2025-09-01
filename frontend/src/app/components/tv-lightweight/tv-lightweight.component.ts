@@ -1,12 +1,6 @@
 import { Component, ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import {
-    createChart,
-    IChartApi,
-    ISeriesApi,
-    ColorType,
-    SeriesPartialOptionsMap,
-} from 'lightweight-charts';
+import { createChart, ColorType } from 'lightweight-charts';
 import { ApiService } from '../../services/api.service';
 import { WsService } from '../../services/ws.service';
 
@@ -19,8 +13,8 @@ import { WsService } from '../../services/ws.service';
 })
 export class TvLightweightComponent implements OnInit, OnDestroy {
     private containerId = 'lwch-' + Math.random().toString(36).slice(2);
-    private chart?: IChartApi;
-    private series?: ISeriesApi<'Area'>;
+    private chart: any;
+    private series: any;
     private ro?: ResizeObserver;
 
     symbol = 'BNBUSDT';
@@ -36,7 +30,7 @@ export class TvLightweightComponent implements OnInit, OnDestroy {
 
     ngOnDestroy(): void {
         try { this.ro?.disconnect(); } catch {}
-        try { this.chart?.remove(); } catch {}
+        try { this.chart?.remove?.(); } catch {}
     }
 
     private async loadConfig() {
@@ -57,10 +51,11 @@ export class TvLightweightComponent implements OnInit, OnDestroy {
         const host: HTMLElement = this.el.nativeElement.querySelector('#' + this.containerId);
         if (!host) return;
 
-        const chart = createChart(host, {
+        // Кидаем опции как any, чтобы не привязываться к минорным изменениям типов между версиями
+        this.chart = createChart(host, {
             autoSize: true,
             layout: {
-                background: { type: ColorType.Solid, color: this.theme === 'dark' ? '#0d0d0f' : '#ffffff' },
+                background: { type: (ColorType as any)?.Solid ?? 'solid', color: this.theme === 'dark' ? '#0d0d0f' : '#ffffff' },
                 textColor: this.theme === 'dark' ? '#d0d0d0' : '#222',
             },
             rightPriceScale: { borderVisible: false },
@@ -70,39 +65,41 @@ export class TvLightweightComponent implements OnInit, OnDestroy {
                 horzLines: { color: this.theme === 'dark' ? '#1f1f25' : '#eaeaea' },
             },
             crosshair: { mode: 1 },
-        });
+        } as any);
 
-        const opts: SeriesPartialOptionsMap['Area'] = {
+        const opts: any = {
             lineWidth: 2,
             priceLineVisible: true,
             lastValueVisible: true,
             priceFormat: { type: 'price' },
         };
 
-        // В твоей версии библиотеки используется универсальный метод addSeries(...)
-        const series = chart.addSeries({
-            type: 'Area',
-            isBuiltIn: false,
-            defaultOptions: undefined
-        }, opts);
+        // ✅ Совместимость v4/v5:
+        // v4: chart.addAreaSeries(opts)
+        // v5: chart.addSeries({ type: 'Area' }, opts)
+        const anyChart: any = this.chart;
+        if (typeof anyChart.addAreaSeries === 'function') {
+            this.series = anyChart.addAreaSeries(opts);
+        } else if (typeof anyChart.addSeries === 'function') {
+            this.series = anyChart.addSeries({ type: 'Area' } as any, opts as any);
+        } else {
+            console.error('lightweight-charts: no addSeries/addAreaSeries available');
+            return;
+        }
 
-        // стартовая точка, чтобы не было пусто
+        // стартовая точка
         const now = Math.floor(Date.now() / 1000);
-        series.setData([{ time: now as any, value: 0 }]);
+        this.series.setData([{ time: now as any, value: 0 }]);
 
         // авто-ресайз
-        this.ro = new ResizeObserver(() => chart.applyOptions({}));
+        this.ro = new ResizeObserver(() => this.chart.applyOptions({}));
         this.ro.observe(host);
-
-        this.chart = chart;
-        this.series = series;
     }
 
     private bindWs() {
         this.ws.connect();
         this.ws.messages$.subscribe((msg: any) => {
-            if (!msg || typeof msg !== 'object') return;
-            if (msg.type !== 'market') return;
+            if (!msg || typeof msg !== 'object' || msg.type !== 'market') return;
 
             const s = (msg.symbol || '').toString().toUpperCase();
             if (!s || (this.symbol && s !== this.symbol)) return;
@@ -111,7 +108,7 @@ export class TvLightweightComponent implements OnInit, OnDestroy {
             if (!isFinite(last)) return;
 
             const timeSec = Math.floor((Number(msg.ts) || Date.now()) / 1000);
-            this.series?.update({ time: timeSec as any, value: last });
+            this.series?.update?.({ time: timeSec as any, value: last });
         });
     }
 
