@@ -1,0 +1,9 @@
+fastapi==0.115.2
+uvicorn[standard]==0.30.6
+python-binance==1.0.29
+pydantic==2.8.2
+pydantic-settings==2.4.0
+PyYAML==6.0.2
+aiohttp==3.10.5
+async-timeout==4.0.3
+rich==13.8.0

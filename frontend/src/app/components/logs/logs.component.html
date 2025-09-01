@@ -1,0 +1,4 @@
+<h3>Логи / Диагностика</h3>
+<div style="max-height:300px; overflow:auto; font-family:ui-monospace, monospace; font-size:12px">
+  <div *ngFor="let r of rows">[{{r.ts}}] {{ r.evt.type }} — {{ r.evt | json }}</div>
+</div>

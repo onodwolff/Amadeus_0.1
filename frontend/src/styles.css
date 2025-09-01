@@ -1,0 +1,17 @@
+:root {
+  --bg: #0e0f14;
+  --card: #151823;
+  --accent: #7c4dff;
+  --ok: #00e676;
+  --warn: #ffc400;
+  --bad: #ff5252;
+}
+html, body { height: 100%; background: var(--bg); color: #e6e6f0; }
+body { margin: 0; font-family: Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
+.card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: 0 6px 30px rgba(0,0,0,.3); }
+.badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #263238; }
+.grid { display: grid; gap: 12px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+h1,h2,h3 { margin: 8px 0; }
+button.mat-mdc-button-base { border-radius: 12px!important; }

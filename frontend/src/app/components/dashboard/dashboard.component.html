@@ -1,0 +1,65 @@
+<h2 style="margin-bottom:8px">Дашборд</h2>
+<div class="grid grid-3">
+  <div>
+    <div class="badge">Рынок</div>
+    <div style="font-size:28px;font-weight:800;margin-top:4px;">
+      <span style="color:#00e676">{{market.bid || '—'}}</span>
+      <span style="opacity:.6">/</span>
+      <span style="color:#ff5252">{{market.ask || '—'}}</span>
+    </div>
+    <div style="opacity:.8">mid {{market.mid || '—'}} | spread {{market.spread_pct?.toFixed?.(5) || '—'}}%</div>
+    <div style="margin-top:6px">
+      <span class="badge" [style.background]="(diag === 'OK') ? '#1b5e20' : '#263238'">{{diag}}</span>
+      <span class="badge">WS≈{{wsRate | number:'1.0-2'}}/c</span>
+    </div>
+  </div>
+  <div>
+    <div class="badge">План</div>
+    <div style="margin-top:6px;">BUY: <b>{{market.buy || '—'}}</b> | SELL: <b>{{market.sell || '—'}}</b></div>
+    <div>Gross: <b [style.color]="(market.exp_gross||0)>=0?'#00e676':'#ff5252'">{{market.exp_gross?.toFixed?.(5) || '—'}}%</b></div>
+    <div>Net: <b [style.color]="(market.exp_net||0)>=0?'#00e676':'#ff5252'">{{market.exp_net?.toFixed?.(5) || '—'}}%</b></div>
+  </div>
+  <div>
+    <div class="badge">Банк</div>
+    <div style="margin-top:6px">Кэш: <b>{{bank.cash || '—'}}</b></div>
+    <div>База: <b>{{bank.base || '—'}}</b></div>
+    <div>Эквити: <b>{{bank.equity || '—'}}</b></div>
+    <div>Реализовано: <b [style.color]="(+(bank.realized||0))>=0?'#00e676':'#ff5252'">{{bank.realized || '—'}}</b></div>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-top:12px">
+  <div>
+    <h3>Сделки</h3>
+    <table mat-table [dataSource]="trades">
+      <ng-container matColumnDef="side">
+        <th mat-header-cell *matHeaderCellDef>Side</th>
+        <td mat-cell *matCellDef="let r" [style.color]="r.side==='BUY' ? '#00e676' : '#ff5252'">{{r.side}}</td>
+      </ng-container>
+      <ng-container matColumnDef="qty">
+        <th mat-header-cell *matHeaderCellDef>Qty</th>
+        <td mat-cell *matCellDef="let r">{{r.qty | number:'1.0-8'}}</td>
+      </ng-container>
+      <ng-container matColumnDef="price">
+        <th mat-header-cell *matHeaderCellDef>Price</th>
+        <td mat-cell *matCellDef="let r">{{r.price | number:'1.0-8'}}</td>
+      </ng-container>
+      <ng-container matColumnDef="liq">
+        <th mat-header-cell *matHeaderCellDef>Liq</th>
+        <td mat-cell *matCellDef="let r">{{r.liq}}</td>
+      </ng-container>
+      <ng-container matColumnDef="ts">
+        <th mat-header-cell *matHeaderCellDef>Time</th>
+        <td mat-cell *matCellDef="let r">{{r.ts}}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  </div>
+  <div>
+    <h3>События ордеров</h3>
+    <div style="max-height:280px; overflow:auto; font-family:ui-monospace, monospace; font-size:12px">
+      <div *ngFor="let o of orders">[{{o.ts}}] #{{o.orderId}} {{o.side}} {{o.status}} px={{o.price}} exec={{o.executedQty}} cq={{o.cummulativeQuoteQty}}</div>
+    </div>
+  </div>
+</div>
