@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 /** Статус бота: расширен под dashboard (metrics?, cfg?) */
 export interface BotStatus {
@@ -15,7 +16,7 @@ export interface BotStatus {
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private readonly baseRoot: string = ((window as any).__API__ || 'http://127.0.0.1:8100').replace(/\/$/, '');
+  private readonly baseRoot: string = environment.apiBaseUrl.replace(/\/$/, '');
   readonly api: string = this.baseRoot + '/api';
   private readonly _token: string = (window as any).__TOKEN__ || 'secret-token';
 
