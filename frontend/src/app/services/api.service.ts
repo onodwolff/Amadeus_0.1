@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 import {
   BotStatus,
   Config,
@@ -20,7 +21,7 @@ import {
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private readonly win = window as unknown as { __API__?: string; __TOKEN__?: string };
-  private readonly baseRoot: string = (this.win.__API__ || 'http://127.0.0.1:8100').replace(/\/$/, '');
+  private readonly baseRoot: string = (this.win.__API__ || environment.apiBaseUrl || 'http://127.0.0.1:8100').replace(/\/$/, '');
   readonly api: string = this.baseRoot + '/api';
   private readonly _token: string = this.win.__TOKEN__ || 'secret-token';
 
