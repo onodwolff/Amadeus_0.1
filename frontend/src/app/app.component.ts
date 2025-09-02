@@ -12,6 +12,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from './services/api.service';
 import { WsService } from './services/ws.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import {
+  Config,
+  ConfigGetResponse,
+  ConfigResponse,
+  HistoryResponse,
+  OrderHistoryItem,
+  RiskStatus,
+  TradeHistoryItem,
+} from './models';
 
 // Компоненты
 import { ControlsComponent } from './components/controls/controls.component';
@@ -59,8 +68,8 @@ export class AppComponent implements OnInit, OnDestroy {
   theme: Theme = 'dark';
 
   // risk
-  risk: any = null;
-  private riskTimer?: any;
+  risk: RiskStatus | null = null;
+  private riskTimer?: ReturnType<typeof setInterval>;
 
   // live lists
   liveOpen: Record<string, LiveOrder> = {};
@@ -72,7 +81,7 @@ export class AppComponent implements OnInit, OnDestroy {
   dbTrades: DbRow[] = [];
 
   // cfg
-  cfg: any = {
+  cfg: Config = {
     api: { paper: true, shadow: true, autostart: false },
     shadow: { rest_base: 'https://api.binance.com', ws_base: 'wss://stream.binance.com:9443/ws' },
     ui: { chart: 'tv', theme: 'dark' }
@@ -82,9 +91,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     // первичная подгрузка конфига
+    const isConfigResp = (r: ConfigGetResponse): r is ConfigResponse => (r as ConfigResponse).cfg !== undefined;
     this.api.getConfig().subscribe({
-      next: (res: any) => {
-        const incoming = res?.cfg ?? res ?? {};
+      next: (res: ConfigGetResponse) => {
+        const incoming: Config = isConfigResp(res) ? res.cfg : res;
         this.cfg = { ...this.cfg, ...incoming };
         const ui = this.cfg.ui || {};
         const m = String(ui.chart || 'tv').toLowerCase();
@@ -100,32 +110,33 @@ export class AppComponent implements OnInit, OnDestroy {
 
     // WS (live-история)
     this.ws.connect();
-    this.ws.messages$.subscribe((msg: any) => {
+    this.ws.messages$.subscribe((msg: unknown) => {
       if (!msg || typeof msg !== 'object') return;
+      const data = msg as Record<string, unknown>;
 
-      if (msg.type === 'order_event') {
-        const id = String(msg.id || '');
+      if (data['type'] === 'order_event') {
+        const id = String(data['id'] ?? '');
         const row: LiveOrder = {
           id,
-          side: String(msg.side || 'BUY').toUpperCase() as any,
-          price: Number(msg.price || 0),
-          qty: Number(msg.qty || 0),
-          status: String(msg.evt || msg.status || 'NEW').toUpperCase(),
-          ts: Number(msg.ts || Date.now())
+          side: String(data['side'] ?? 'BUY').toUpperCase() as 'BUY' | 'SELL',
+          price: Number(data['price'] ?? 0),
+          qty: Number(data['qty'] ?? 0),
+          status: String(data['evt'] ?? data['status'] ?? 'NEW').toUpperCase(),
+          ts: Number(data['ts'] ?? Date.now())
         };
         if (row.status === 'NEW') this.liveOpen[id] = row;
         else {
           if (this.liveOpen[id]) this.liveOpen[id] = row;
           if (row.status === 'FILLED' || row.status === 'CANCELED') delete this.liveOpen[id];
         }
-      } else if (msg.type === 'trade') {
+      } else if (data['type'] === 'trade') {
         const tr: LiveTrade = {
-          id: String(msg.id || ''),
-          side: String(msg.side || 'BUY').toUpperCase() as any,
-          price: Number(msg.price || 0),
-          qty: Number(msg.qty || 0),
-          pnl: Number(msg.pnl || 0),
-          ts: Number(msg.ts || Date.now())
+          id: String(data['id'] ?? ''),
+          side: String(data['side'] ?? 'BUY').toUpperCase() as 'BUY' | 'SELL',
+          price: Number(data['price'] ?? 0),
+          qty: Number(data['qty'] ?? 0),
+          pnl: Number(data['pnl'] ?? 0),
+          ts: Number(data['ts'] ?? Date.now())
         };
         this.liveTrades.unshift(tr);
         // ограничение live буфера до 100
@@ -144,52 +155,54 @@ export class AppComponent implements OnInit, OnDestroy {
   setHistTab(tab: 'live'|'db') { this.histTab = tab; if (tab === 'db') this.loadDbHistory(); }
 
   // DB history — лимиты ↓ 100
-  private boolToSide(v: any): string {
+  private boolToSide(v: unknown): string {
     if (typeof v === 'boolean') return v ? 'BUY' : 'SELL';
     const s = String(v || '').toUpperCase();
     if (s === 'TRUE')  return 'BUY';
     if (s === 'FALSE') return 'SELL';
     return s || '';
   }
-  private mapOrder = (r: any): DbRow => {
-    const event = String(r?.event ?? r?.evt ?? r?.kind ?? r?.status ?? 'ORDER').toUpperCase();
-    const symbol = String(r?.symbol ?? r?.S ?? r?.s ?? this.cfg?.strategy?.symbol ?? '');
-    const side = this.boolToSide(r?.side ?? r?.SIDE ?? r?.buyer ?? r?.isBuyer ?? '');
-    const typ = String(r?.orderType ?? r?.type ?? r?.ord_type ?? 'LIMIT').toUpperCase();
-    const price = Number(r?.price ?? r?.p ?? r?.avgPrice ?? r?.stopPrice ?? r?.limitPrice ?? 0);
-    const qty = Number(r?.qty ?? r?.quantity ?? r?.q ?? r?.executedQty ?? r?.origQty ?? 0);
-    const status = String(r?.status ?? r?.evt ?? '').toUpperCase();
-    const ts = Number(r?.ts ?? r?.time ?? r?.transactTime ?? r?.T ?? Date.now());
+  private mapOrder = (r: Record<string, unknown> | OrderHistoryItem): DbRow => {
+    const rec = r as Record<string, unknown>;
+    const event = String(rec['event'] ?? rec['evt'] ?? rec['kind'] ?? rec['status'] ?? 'ORDER').toUpperCase();
+    const symbol = String(rec['symbol'] ?? rec['S'] ?? rec['s'] ?? this.cfg?.strategy?.symbol ?? '');
+    const side = this.boolToSide(rec['side'] ?? rec['SIDE'] ?? rec['buyer'] ?? rec['isBuyer'] ?? '');
+    const typ = String(rec['orderType'] ?? rec['type'] ?? rec['ord_type'] ?? 'LIMIT').toUpperCase();
+    const price = Number(rec['price'] ?? rec['p'] ?? rec['avgPrice'] ?? rec['stopPrice'] ?? rec['limitPrice'] ?? 0);
+    const qty = Number(rec['qty'] ?? rec['quantity'] ?? rec['q'] ?? rec['executedQty'] ?? rec['origQty'] ?? 0);
+    const status = String(rec['status'] ?? rec['evt'] ?? '').toUpperCase();
+    const ts = Number(rec['ts'] ?? rec['time'] ?? rec['transactTime'] ?? rec['T'] ?? Date.now());
     return { event, symbol, side, type: typ, price, qty, status, ts };
   };
-  private mapTrade = (r: any): DbRow => {
-    const symbol = String(r?.symbol ?? r?.S ?? r?.s ?? this.cfg?.strategy?.symbol ?? '');
-    const side = this.boolToSide(r?.side ?? r?.isBuyer ?? '');
-    const price = Number(r?.price ?? r?.p ?? r?.avgPrice ?? 0);
-    const qty = Number(r?.qty ?? r?.q ?? r?.executedQty ?? r?.origQty ?? 0);
-    const status = String(r?.status ?? 'FILLED').toUpperCase();
-    const ts = Number(r?.ts ?? r?.time ?? r?.T ?? Date.now());
+  private mapTrade = (r: Record<string, unknown> | TradeHistoryItem): DbRow => {
+    const rec = r as Record<string, unknown>;
+    const symbol = String(rec['symbol'] ?? rec['S'] ?? rec['s'] ?? this.cfg?.strategy?.symbol ?? '');
+    const side = this.boolToSide(rec['side'] ?? rec['isBuyer'] ?? '');
+    const price = Number(rec['price'] ?? rec['p'] ?? rec['avgPrice'] ?? 0);
+    const qty = Number(rec['qty'] ?? rec['q'] ?? rec['executedQty'] ?? rec['origQty'] ?? 0);
+    const status = String(rec['status'] ?? 'FILLED').toUpperCase();
+    const ts = Number(rec['ts'] ?? rec['time'] ?? rec['T'] ?? Date.now());
     return { event: 'TRADE', symbol, side, type: 'TRADE', price, qty, status, ts };
   };
   loadDbHistory() {
     this.dbLoading = true;
     let done = 0; const finish = () => { done++; if (done >= 2) this.dbLoading = false; };
     this.api.historyOrders(100, 0).subscribe({
-      next: (res: any) => {
-        const rows = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
+      next: (res: HistoryResponse<OrderHistoryItem>) => {
+        const rows = Array.isArray(res?.items) ? res.items : [];
         this.dbOrders = rows.map(this.mapOrder);
       }, error: _ => this.dbOrders = [], complete: finish
     });
     this.api.historyTrades(100, 0).subscribe({
-      next: (res: any) => {
-        const rows = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : []);
+      next: (res: HistoryResponse<TradeHistoryItem>) => {
+        const rows = Array.isArray(res?.items) ? res.items : [];
         this.dbTrades = rows.map(this.mapTrade);
       }, error: _ => this.dbTrades = [], complete: finish
     });
   }
 
   // Риск
-  refreshRisk() { this.api.getRiskStatus().subscribe({ next: r => this.risk = r || {}, error: _ => this.risk = null }); }
+  refreshRisk() { this.api.getRiskStatus().subscribe({ next: r => this.risk = r, error: _ => this.risk = null }); }
 
   // Chart toggle (сохраняем в конфиге)
   toggleChart() {

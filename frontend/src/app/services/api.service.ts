@@ -2,22 +2,27 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, timer } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import {
+  BotStatus,
+  Config,
+  ConfigGetResponse,
+  ConfigResponse,
+  HistoryResponse,
+  HistoryStats,
+  OrderHistoryItem,
+  RiskStatus,
+  TradeHistoryItem,
+} from '../models';
 
 /** Статус бота: расширен под dashboard (metrics?, cfg?) */
-export interface BotStatus {
-  running: boolean;
-  symbol?: string;
-  equity?: number;
-  ts?: number;
-  metrics?: any;
-  cfg?: any;
-}
+// Interface moved to models.ts
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  private readonly baseRoot: string = ((window as any).__API__ || 'http://127.0.0.1:8100').replace(/\/$/, '');
+  private readonly win = window as unknown as { __API__?: string; __TOKEN__?: string };
+  private readonly baseRoot: string = (this.win.__API__ || 'http://127.0.0.1:8100').replace(/\/$/, '');
   readonly api: string = this.baseRoot + '/api';
-  private readonly _token: string = (window as any).__TOKEN__ || 'secret-token';
+  private readonly _token: string = this.win.__TOKEN__ || 'secret-token';
 
   private auth() { return { headers: { 'Authorization': `Bearer ${this._token}` } }; }
   get token(): string { return this._token; }
@@ -38,35 +43,36 @@ export class ApiService {
 
   // ------------ BOT ------------
   status(): Observable<BotStatus> { return this.http.get<BotStatus>(`${this.api}/bot/status`, this.auth()); }
-  start():  Observable<any>       { return this.http.post(`${this.api}/bot/start`, {}, this.auth()); }
-  stop():   Observable<any>       { return this.http.post(`${this.api}/bot/stop`,  {}, this.auth()); }
+  start():  Observable<unknown>   { return this.http.post(`${this.api}/bot/start`, {}, this.auth()); }
+  stop():   Observable<unknown>   { return this.http.post(`${this.api}/bot/stop`,  {}, this.auth()); }
 
   // ----------- SCANNER ---------
-  scan(): Observable<any>         { return this.http.post(`${this.api}/scanner/scan`, {}, this.auth()); }
+  scan(): Observable<unknown>     { return this.http.post(`${this.api}/scanner/scan`, {}, this.auth()); }
 
   // ----------- CONFIG ----------
-  getConfig(): Observable<any>    { return this.http.get(`${this.api}/config`, this.auth()); }
+  getConfig(): Observable<ConfigGetResponse> { return this.http.get<ConfigGetResponse>(`${this.api}/config`, this.auth()); }
 
   /**
    * Универсальный сейв конфигурации:
    * 1) PUT {cfg} → 2) PUT raw → 3) POST {cfg} → 4) POST raw
    * Это гасит 405/400/422 при несовпадении контракта.
    */
-  putConfig(cfg: any): Observable<any> {
+  putConfig(cfg: Config | string): Observable<unknown> {
     const url = `${this.api}/config`;
     const bodyWrapped = { cfg };
     const bodyRaw = cfg;
 
     const opts = this.auth();
+    const getStatus = (e: unknown) => (e as { status?: number } | undefined)?.status;
     return this.http.put(url, bodyWrapped, opts).pipe(
-        catchError(err1 => {
-          if ([405, 400, 415, 422].includes(err1?.status)) {
+        catchError((err1: unknown) => {
+          if ([405, 400, 415, 422].includes(getStatus(err1) ?? 0)) {
             return this.http.put(url, bodyRaw, opts).pipe(
-                catchError(err2 => {
-                  if ([405, 400, 415, 422].includes(err2?.status)) {
+                catchError((err2: unknown) => {
+                  if ([405, 400, 415, 422].includes(getStatus(err2) ?? 0)) {
                     return this.http.post(url, bodyWrapped, opts).pipe(
-                        catchError(err3 => {
-                          if ([405, 400, 415, 422].includes(err3?.status)) {
+                        catchError((err3: unknown) => {
+                          if ([405, 400, 415, 422].includes(getStatus(err3) ?? 0)) {
                             return this.http.post(url, bodyRaw, opts);
                           }
                           throw err3;
@@ -82,25 +88,25 @@ export class ApiService {
     );
   }
 
-  getDefaultConfig(): Observable<any> { return this.http.get(`${this.api}/config/default`, this.auth()); }
-  restoreConfig():    Observable<any> { return this.http.post(`${this.api}/config/restore`, {}, this.auth()); }
+  getDefaultConfig(): Observable<ConfigResponse> { return this.http.get<ConfigResponse>(`${this.api}/config/default`, this.auth()); }
+  restoreConfig():    Observable<ConfigResponse> { return this.http.post<ConfigResponse>(`${this.api}/config/restore`, {}, this.auth()); }
 
   // ------------ RISK -----------
-  getRiskStatus(): Observable<any> { return this.http.get(`${this.api}/risk/status`, this.auth()); }
-  unlockRisk():    Observable<any> { return this.http.post(`${this.api}/risk/unlock`, {}, this.auth()); }
+  getRiskStatus(): Observable<RiskStatus> { return this.http.get<RiskStatus>(`${this.api}/risk/status`, this.auth()); }
+  unlockRisk():    Observable<unknown> { return this.http.post(`${this.api}/risk/unlock`, {}, this.auth()); }
 
   // ----------- HISTORY ---------
-  historyOrders(limit = 200, offset = 0): Observable<any> {
-    return this.http.get(`${this.api}/history/orders?limit=${limit}&offset=${offset}`, this.auth());
+  historyOrders(limit = 200, offset = 0): Observable<HistoryResponse<OrderHistoryItem>> {
+    return this.http.get<HistoryResponse<OrderHistoryItem>>(`${this.api}/history/orders?limit=${limit}&offset=${offset}`, this.auth());
   }
-  historyTrades(limit = 200, offset = 0): Observable<any> {
-    return this.http.get(`${this.api}/history/trades?limit=${limit}&offset=${offset}`, this.auth());
+  historyTrades(limit = 200, offset = 0): Observable<HistoryResponse<TradeHistoryItem>> {
+    return this.http.get<HistoryResponse<TradeHistoryItem>>(`${this.api}/history/trades?limit=${limit}&offset=${offset}`, this.auth());
   }
-  historyStats(): Observable<any> {
-    return this.http.get(`${this.api}/history/stats`, this.auth());
+  historyStats(): Observable<HistoryStats> {
+    return this.http.get<HistoryStats>(`${this.api}/history/stats`, this.auth());
   }
-  historyClear(kind: 'orders'|'trades'|'all' = 'all'): Observable<any> {
-    return this.http.post(`${this.api}/history/clear?kind=${kind}`, {}, this.auth());
+  historyClear(kind: 'orders'|'trades'|'all' = 'all'): Observable<HistoryStats> {
+    return this.http.post<HistoryStats>(`${this.api}/history/clear?kind=${kind}`, {}, this.auth());
   }
   historyExportUrl(kind: 'orders'|'trades' = 'orders'): string {
     return `${this.api}/history/export.csv?kind=${kind}&token=${this._token}`;
