@@ -63,3 +63,4 @@ frontend/pnpm-debug.log*
 
 # Coverage (если появится)
 frontend/coverage/
+backend/data/history.db
