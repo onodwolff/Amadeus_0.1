@@ -1,7 +1,8 @@
 import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppMaterialModule } from '../../app.module';
-import { ApiService, BotStatus } from '../../services/api.service';
+import { ApiService } from '../../services/api.service';
+import { BotStatus } from '../../models';
 import { WsService } from '../../services/ws.service';
 import { Subscription } from 'rxjs';
 import { EquitySparklineComponent } from '../equity-sparkline/equity-sparkline.component'; // ⬅️ импорт спарклайна

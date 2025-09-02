@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppMaterialModule } from '../../app.module';
 import { ApiService } from '../../services/api.service';
+import { HistoryResponse, HistoryStats, OrderHistoryItem, TradeHistoryItem } from '../../models';
 
 @Component({
     selector: 'app-history',
@@ -11,11 +12,11 @@ import { ApiService } from '../../services/api.service';
     styleUrls: ['./history.component.css']
 })
 export class HistoryComponent {
-    orders: any[] = [];
-    trades: any[] = [];
+    orders: OrderHistoryItem[] = [];
+    trades: TradeHistoryItem[] = [];
     loadingO = false;
     loadingT = false;
-    stats: any = {};
+    stats: HistoryStats = { orders: 0, trades: 0 };
 
     constructor(private api: ApiService) {}
 
@@ -26,13 +27,13 @@ export class HistoryComponent {
     refreshAll() {
         this.refreshOrders();
         this.refreshTrades();
-        this.api.historyStats().subscribe(s => this.stats = s || {});
+        this.api.historyStats().subscribe(s => this.stats = s);
     }
 
     refreshOrders() {
         this.loadingO = true;
         this.api.historyOrders(200, 0).subscribe({
-            next: (res: any) => { this.orders = res?.items || []; this.loadingO = false; },
+            next: (res: HistoryResponse<OrderHistoryItem>) => { this.orders = res.items ?? []; this.loadingO = false; },
             error: () => { this.loadingO = false; }
         });
     }
@@ -40,7 +41,7 @@ export class HistoryComponent {
     refreshTrades() {
         this.loadingT = true;
         this.api.historyTrades(200, 0).subscribe({
-            next: (res: any) => { this.trades = res?.items || []; this.loadingT = false; },
+            next: (res: HistoryResponse<TradeHistoryItem>) => { this.trades = res.items ?? []; this.loadingT = false; },
             error: () => { this.loadingT = false; }
         });
     }
@@ -51,6 +52,6 @@ export class HistoryComponent {
     }
 
     clear(kind: 'orders'|'trades'|'all') {
-        this.api.historyClear(kind).subscribe(_ => this.refreshAll());
+        this.api.historyClear(kind).subscribe(() => this.refreshAll());
     }
 }

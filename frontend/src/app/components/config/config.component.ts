@@ -4,6 +4,7 @@ import { AppMaterialModule } from '../../app.module';
 import { ApiService } from '../../services/api.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FormsModule } from '@angular/forms'; // ⬅️ добавили
+import { Config, ConfigGetResponse, ConfigResponse } from '../../models';
 
 @Component({
     selector: 'app-config',
@@ -23,14 +24,15 @@ export class ConfigComponent {
 
     load() {
         this.loading = true; this.err = '';
+        const isConfigResp = (r: ConfigGetResponse): r is ConfigResponse => (r as ConfigResponse).cfg !== undefined;
         this.api.getConfig().subscribe({
-            next: (res: any) => {
-                const cfg = res?.cfg ?? {};
-                this.text = JSON.stringify(cfg, null, 2);
+            next: (res: ConfigGetResponse) => {
+                const cfg: Config = isConfigResp(res) ? res.cfg : res;
+                this.text = JSON.stringify(cfg ?? {}, null, 2);
                 this.loading = false;
             },
-            error: (e) => {
-                this.err = String(e?.message || e);
+            error: (e: unknown) => {
+                this.err = String((e as { message?: string })?.message || e);
                 this.loading = false;
             }
         });
@@ -40,33 +42,39 @@ export class ConfigComponent {
         this.err = '';
         const raw = this.text?.trim();
         if (!raw) { this.err = 'Нельзя сохранять пустой конфиг.'; return; }
-        let parsed: any = null;
+        let parsed: Config | string;
         try {
-            parsed = JSON.parse(raw);
+            parsed = JSON.parse(raw) as Config;
         } catch {
             // отправим как строку — бэкенд сам умеет YAML/JSON
             parsed = raw;
         }
         this.api.putConfig(parsed).subscribe({
-            next: _ => { this.snack.open('Сохранено', 'OK', { duration: 1200 }); this.load(); },
-            error: (e) => { this.err = String(e?.error?.detail || e?.message || e); }
+            next: () => { this.snack.open('Сохранено', 'OK', { duration: 1200 }); this.load(); },
+            error: (e: unknown) => {
+                const errObj = e as { error?: { detail?: string }; message?: string };
+                this.err = String(errObj.error?.detail || errObj.message || e);
+            }
         });
     }
 
     loadDefault() {
         this.api.getDefaultConfig().subscribe({
-            next: (res:any) => { this.text = JSON.stringify(res?.cfg ?? {}, null, 2); },
-            error: (e) => { this.err = String(e?.message || e); }
+            next: (res: ConfigResponse) => { this.text = JSON.stringify(res?.cfg ?? {}, null, 2); },
+            error: (e: unknown) => { this.err = String((e as { message?: string })?.message || e); }
         });
     }
 
     restoreBackup() {
         this.api.restoreConfig().subscribe({
-            next: (res:any) => {
+            next: (res: ConfigResponse) => {
                 this.text = JSON.stringify(res?.cfg ?? {}, null, 2);
                 this.snack.open('Откат выполнен', 'OK', { duration: 1200 });
             },
-            error: (e) => { this.err = String(e?.error?.detail || e?.message || e); }
+            error: (e: unknown) => {
+                const errObj = e as { error?: { detail?: string }; message?: string };
+                this.err = String(errObj.error?.detail || errObj.message || e);
+            }
         });
     }
 
