@@ -1,0 +1,11 @@
+.wrap { display:grid; gap:10px; }
+.row { display:flex; gap:8px; align-items:baseline; }
+.title { font-weight:800; }
+.tbl { width:100%; border-collapse: collapse; }
+.tbl th, .tbl td { border-bottom:1px solid #222; padding:6px 8px; text-align:left; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.muted { color:#96a0a9; }
+.buy { color:#2ecc71; font-weight:700; }
+.sell { color:#ff7675; font-weight:700; }
+.profit { color:#2ecc71; }
+.loss { color:#ff7675; }

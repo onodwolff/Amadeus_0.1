@@ -1,1 +1,46 @@
-/* global styles in styles.css */
+.topbar { display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid #222; }
+.brand { font-weight:800; font-size:18px; }
+.spacer { flex:1 1 auto; }
+.section { padding:12px; }
+.grid { display:grid; gap:12px; }
+.grid-2 { grid-template-columns: 1fr 1fr; }
+.card { border:1px solid #222; border-radius:10px; padding:10px; background:#0d0f12; }
+
+/* Risk summary */
+.risk-summary { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+.risk-summary .item { border:1px solid #1b1f24; border-radius:10px; padding:8px 10px; background:#0f1216; }
+.risk-summary .k { font-size:12px; opacity:.7; }
+.risk-summary .v { font-weight:700; }
+
+/* overlay */
+.overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter: blur(2px); display:flex; align-items:center; justify-content:center; z-index:9999; }
+.panel { width:min(1000px, 96vw); max-height:92vh; overflow:auto; background:#0d0f12; border:1px solid #222; border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:12px; }
+.panel-wide { width:min(1200px, 98vw); }
+.panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.title { font-weight:800; font-size:18px; }
+.panel-body { display:grid; gap:14px; }
+.group { border:1px solid #1b1f24; border-radius:12px; padding:12px; display:grid; gap:10px; background:#0f1216; }
+.group-title { font-weight:700; opacity:.9; display:flex; align-items:center; gap:8px; }
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.w25 { width:calc(25% - 8px); min-width:180px; }
+.w33 { width:calc(33.33% - 8px); min-width:180px; }
+.w50 { width:calc(50% - 8px); min-width:240px; }
+.w100 { width:100%; }
+.hint { font-size:12px; opacity:.65; }
+.panel-actions { display:flex; gap:8px; justify-content:flex-end; }
+.tabs { display:flex; gap:8px; align-items:center; }
+.tabs .active { background:#1d232b; }
+
+/* tables */
+.tbl { width:100%; border-collapse:collapse; }
+.tbl th, .tbl td { border-bottom:1px solid #222; padding:6px 8px; text-align:left; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.muted { color:#96a0a9; }
+.buy { color:#2ecc71; font-weight:700; }
+.sell { color:#ff7675; font-weight:700; }
+.profit { color:#2ecc71; }
+.loss { color:#ff7675; }
+
+/* scroll boxes for tables */
+.scroll { max-height: 380px; overflow: auto; border:1px solid #1b1f24; border-radius:10px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }

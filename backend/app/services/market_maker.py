@@ -1,367 +1,316 @@
 from __future__ import annotations
 import asyncio
-import logging
 import time
-from decimal import Decimal, InvalidOperation
-from binance.enums import *
-from .utils import round_step, round_step_up
-logger = logging.getLogger(__name__)
+import math
+import random
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, List
+
+
+@dataclass
+class PaperOrder:
+    id: str
+    side: str           # 'BUY' | 'SELL'
+    price: float
+    qty: float
+    ts_new: float
+    expires_at: float   # отмена по таймауту
+    status: str = "NEW" # NEW | FILLED | CANCELED
+    filled_qty: float = 0.0
+
 
 class MarketMaker:
-    def __init__(self, cfg, client_wrapper, events_cb=None):
-        self.cfg = cfg
+    """
+    Мини-скальпер для shadow-песочницы:
+    - подписывается на bookTicker,
+    - держит две LIM-лимитки по краям спреда (bid/ask),
+    - переустанавливает при смещении цены,
+    - отменяет по таймауту,
+    - симулирует исполнение при касании лучшими ценами.
+
+    Все события отсылает через events_cb:
+      - {'type':'order_event', ...}
+      - {'type':'trade', ...}
+      - {'type':'diag', 'text': '...'}
+      - {'type':'market', ...} (если надо ретрансляция)
+    """
+
+    def __init__(self, cfg: Dict[str, Any], client_wrapper: Any, events_cb):
+        self.cfg = cfg or {}
         self.client_wrap = client_wrapper
-        self.events_cb = events_cb or (lambda e: None)
+        self.events_cb = events_cb
 
-        s = cfg.get('strategy', {})
-        econ = cfg.get('econ', {})
+        strat = (self.cfg.get("strategy") or {})
+        self.symbol: str = str(strat.get("symbol") or "BNBUSDT").upper()
+        self.loop_sleep: float = float(strat.get("loop_sleep", 0.2))
 
-        self.symbol = s.get('symbol', 'BNBUSDT')
-        self.quote_asset = self._infer_quote_asset(self.symbol)
-        self.base_asset = self._infer_base_asset(self.symbol)
+        # Параметры стратегии
+        self.quote_size: float     = float(strat.get("quote_size", 10.0))   # USDT на сделку
+        self.min_spread_pct: float = float(strat.get("min_spread_pct", 0.0))
+        self.cancel_timeout: float = float(strat.get("cancel_timeout", 10.0))
+        self.post_only: bool       = bool(strat.get("post_only", True))
+        self.reorder_interval: float = float(strat.get("reorder_interval", 1.0))
 
-        self.quote_size = Decimal(str(s.get('quote_size', 10.0)))
-        self.target_pct = float(s.get('target_pct', 0.5))
-        self.min_spread_pct = float(s.get('min_spread_pct', 0.0))
-        self.cancel_timeout = float(s.get('cancel_timeout', 10.0))
-        self.reorder_interval = float(s.get('reorder_interval', 1.0))
-        self.depth_level = int(s.get('depth_level', 5))
+        # runtime
+        self.best_bid: Optional[float] = None
+        self.best_ask: Optional[float] = None
+        self._last_reorder_ts: float = 0.0
 
-        self.maker_fee_pct = float(econ.get('maker_fee_pct', s.get('maker_fee_pct', 0.1)))
-        self.taker_fee_pct = float(econ.get('taker_fee_pct', s.get('taker_fee_pct', self.maker_fee_pct)))
-        self.econ_min_net = float(econ.get('min_net_pct', 0.10))
-        self.enforce_post_only = bool(econ.get('enforce_post_only', s.get('post_only', True)))
-        self.aggressive_take = bool(s.get('aggressive_take', False))
-        self.aggressive_bps = float(s.get('aggressive_bps', 0.0))
-        self.allow_short = bool(s.get('allow_short', False))
+        # бумажные ордера в shadow
+        self.orders: Dict[str, PaperOrder] = {}
+        self._id_seq = 1
 
-        self.status_poll_interval = float(s.get('status_poll_interval', 2.0))
-        self.stats_interval = float(s.get('stats_interval', 30.0))
-        self.ws_timeout = float(s.get('ws_timeout', 2.0))
-        self.bootstrap_on_idle = bool(s.get('bootstrap_on_idle', True))
-        self.rest_bootstrap_interval = float(s.get('rest_bootstrap_interval', 3.0))
-        self.plan_log_interval = float(s.get('plan_log_interval', 5.0))
+        # метрики
+        self.ticks_total = 0
+        self.orders_total = 0
+        self.orders_active = 0
+        self.orders_filled = 0
+        self.orders_expired = 0
 
-        self.start_cash = Decimal(str(s.get('paper_cash', 1000)))
-        self.cash = Decimal(self.start_cash)
-        self.base = Decimal('0')
-        self.equity = Decimal(self.start_cash)
-        self.start_equity = Decimal(self.start_cash)
-        self.realized_pnl = Decimal('0')
-        self.inv_cost_quote = Decimal('0')
+        # границы точности (на глаз, чтобы без обмена exchangeInfo)
+        self._qty_step = 1e-6
+        self._price_step = 1e-2  # 0.01$ для USDT-пар по умолчанию
 
-        self.step_size = None
-        self.tick_size = None
-        self.min_notional = None
-        self.min_qty = None
-        self.min_price = None
-
-        self.state = "INIT"
-        self.open_orders = {}
-        self._last_bid = None
-        self._last_ask = None
-        self._last_mid = None
-
-        self._ws_msg_count = 0
-        self._rest_count = {"get_order": 0, "create_order": 0, "cancel_order": 0}
-        self._rate_last_ts = time.time()
-        self._rate_last_ws = 0
-        self._computed_ws_rate = 0.0
-
-        self.trades_total = 0
-        self.trades_buy = 0
-        self.trades_sell = 0
-        self.trades_maker = 0
-        self.trades_taker = 0
-
-        self.orders_created_total = 0
-        self.orders_canceled_total = 0
-        self.orders_rejected_total = 0
-        self.orders_filled_total = 0
-        self.orders_expired_total = 0
-
-    @staticmethod
-    def _infer_quote_asset(symbol: str) -> str:
-        return symbol[-4:] if symbol.endswith("USDT") else symbol[-3:]
-
-    @staticmethod
-    def _infer_base_asset(symbol: str) -> str:
-        return symbol[:-4] if symbol.endswith("USDT") else symbol[:-3]
-
-    async def init_symbol_info(self):
-        info = await self.client_wrap.client.get_symbol_info(self.symbol)
-        if info is None:
-            logger.error("Symbol '%s' not found.", self.symbol)
-            raise ValueError(f"Symbol {self.symbol} unavailable.")
-        for f in info['filters']:
-            ft = f.get('filterType')
-            if ft == 'LOT_SIZE':
-                self.step_size = float(f['stepSize']); self.min_qty = float(f.get('minQty', 0.0))
-            elif ft == 'PRICE_FILTER':
-                self.tick_size = float(f['tickSize']); self.min_price = float(f.get('minPrice', 0.0))
-            elif ft in ('MIN_NOTIONAL', 'NOTIONAL'):
-                self.min_notional = float(f.get('minNotional') or f.get('notional') or 0.0)
-        if self.step_size is None or self.tick_size is None:
-            raise RuntimeError("Required filters missing: LOT_SIZE/PRICE_FILTER.")
-        await self.events_cb({"type":"symbol_info","symbol":self.symbol,"step":self.step_size,"tick":self.tick_size})
-
-    def _diagnose_qty(self, price: float):
-        if price <= 0:
-            return {"qty": 0.0, "reason": "price<=0"}
-        initial_qty = float(self.quote_size) / float(price)
-        qty = initial_qty
-        if self.min_notional:
-            min_qty_by_notional = float(self.min_notional) / float(price)
-            if qty < min_qty_by_notional:
-                qty = min_qty_by_notional
-        rounded = round_step(qty, self.step_size, precision=8)
-        if self.min_qty and rounded < float(self.min_qty):
-            return {"qty": 0.0, "reason": f"rounded {rounded} < MIN_QTY {self.min_qty}",
-                    "initial": initial_qty, "rounded": rounded,
-                    "min_qty": self.min_qty, "min_notional": self.min_notional,
-                    "notional": rounded * price}
-        return {"qty": rounded, "initial": initial_qty, "notional": rounded * price}
-
-    def _compute_prices(self, bid: float, ask: float):
-        mid = (float(bid) + float(ask)) / 2.0
-        half = self.target_pct / 200.0
-        raw_buy = mid * (1.0 - half)
-        raw_sell = mid * (1.0 + half)
-        buy_p = round_step(raw_buy, self.tick_size, precision=8)
-        sell_p = round_step_up(raw_sell, self.tick_size, precision=8)
-        if buy_p > float(bid):  buy_p = round_step(bid, self.tick_size, precision=8)
-        if sell_p < float(ask): sell_p = round_step_up(ask, self.tick_size, precision=8)
-        if self.aggressive_take:
-            if self.aggressive_bps > 0:
-                bump = 1.0 + (self.aggressive_bps / 10000.0)
-                buy_p = max(buy_p, round_step_up(ask * bump, self.tick_size, precision=8))
-                sell_p = min(sell_p, round_step(bid / bump, self.tick_size, precision=8))
-            else:
-                buy_p = max(buy_p, round_step_up(ask, self.tick_size, precision=8))
-                sell_p = min(sell_p, round_step(bid, self.tick_size, precision=8))
-        exp_gross = ((sell_p - buy_p) / buy_p) * 100 if buy_p > 0 else 0.0
-        fee_total = (self.maker_fee_pct + self.taker_fee_pct) if self.aggressive_take else (2.0 * self.maker_fee_pct)
-        exp_net = exp_gross - fee_total
-        return buy_p, sell_p, mid, exp_gross, exp_net
-
-    def _recalc_equity(self, mid: float):
-        try:
-            self.equity = (self.cash + self.base * Decimal(str(mid))).quantize(Decimal("0.00000001"))
-        except InvalidOperation:
-            self.equity = self.cash + self.base * Decimal(str(mid))
-
-    async def _rest_bootstrap_once(self):
-        try:
-            t = await self.client_wrap.client.get_orderbook_ticker(symbol=self.symbol)
-            best_bid = float(t['bidPrice']); best_ask = float(t['askPrice'])
-            await self._on_market(best_bid, best_ask, source="REST")
-        except Exception:
-            pass
-
-    async def _bootstrap_loop(self):
-        first_done = False
-        while True:
-            if not first_done and self._ws_msg_count == 0:
-                await self._rest_bootstrap_once()
-                first_done = True
-            elif self.bootstrap_on_idle:
-                await self._rest_bootstrap_once()
-            await asyncio.sleep(self.rest_bootstrap_interval)
-            if self._ws_msg_count > 0 and not self.bootstrap_on_idle:
-                break
-
-    async def _stats_loop(self):
-        self._computed_ws_rate = 0.0
-        while True:
-            now = time.time()
-            dt = max(1e-6, now - self._rate_last_ts)
-            dws = self._ws_msg_count - self._rate_last_ws
-            self._computed_ws_rate = dws / dt
-            self._rate_last_ts = now
-            self._rate_last_ws = self._ws_msg_count
-            try:
-                await self.events_cb({"type":"stats","ws_rate":self._computed_ws_rate,
-                                      "rest":self._rest_count})
-            except Exception:
-                pass
-            await asyncio.sleep(1.0)
-
-    async def _market_depth_loop(self):
-        bm = self.client_wrap.bm
-        while True:
-            try:
-                async with bm.depth_socket(self.symbol, depth=self.depth_level) as stream:
-                    while True:
-                        try:
-                            msg = await asyncio.wait_for(stream.recv(), timeout=self.ws_timeout)
-                            self._ws_msg_count += 1
-                            bids = msg.get('bids', []); asks = msg.get('asks', [])
-                            if not bids or not asks:
-                                self.state = "WAIT: empty book"
-                                await asyncio.sleep(self.reorder_interval); continue
-                            await self.client_wrap.on_book_update(self.symbol, bids, asks)
-                            best_bid = float(bids[0][0]); best_ask = float(asks[0][0])
-                            await self._on_market(best_bid, best_ask, source="WS")
-                            await asyncio.sleep(self.reorder_interval)
-                        except asyncio.TimeoutError:
-                            if self._last_mid is not None:
-                                self._recalc_equity(self._last_mid)
-                            await self._refresh_open_orders()
-                            await asyncio.sleep(self.reorder_interval)
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                await asyncio.sleep(1.0)
-
-    async def _aggtrade_loop(self):
-        bm = self.client_wrap.bm
-        while True:
-            try:
-                async with bm.aggtrade_socket(self.symbol) as stream:
-                    while True:
-                        try:
-                            tmsg = await stream.recv()
-                            price = float(tmsg.get('p', 0.0))
-                            qty = float(tmsg.get('q', 0.0))
-                            is_buyer_maker = bool(tmsg.get('m', False))
-                            await self.client_wrap.on_trade(self.symbol, price, qty, is_buyer_maker)
-                            await self._refresh_open_orders(force=True)
-                        except asyncio.TimeoutError:
-                            pass
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                await asyncio.sleep(1.0)
-
-    async def _on_market(self, best_bid: float, best_ask: float, source: str):
-        mid = (best_bid + best_ask) / 2.0
-        self._last_bid, self._last_ask, self._last_mid = best_bid, best_ask, mid
-        mkt_spread = ((best_ask - best_bid) / max(1e-12, best_bid)) * 100.0
-
-        buy_p, sell_p, _, exp_gross, exp_net = self._compute_prices(best_bid, best_ask)
-        await self.events_cb({"type":"market","bid":best_bid,"ask":best_ask,"mid":mid,
-                              "spread_pct":mkt_spread,"buy":buy_p,"sell":sell_p,
-                              "exp_gross":exp_gross,"exp_net":exp_net})
-        self._recalc_equity(mid)
-        await self.events_cb({"type":"bank","cash":str(self.cash),"base":str(self.base),
-                              "equity":str(self.equity),"realized":str(self.realized_pnl)})
-        diag = []
-        if mkt_spread < self.min_spread_pct:
-            diag.append(f"SPREAD {mkt_spread:.5f}% < min {self.min_spread_pct:.5f}%")
-        if (exp_net) < self.econ_min_net:
-            diag.append(f"ECON net≈{exp_net:.5f}% < {self.econ_min_net:.5f}%")
-        await self.events_cb({"type":"diag","text":" | ".join(diag) if diag else "OK"})
-        if diag:
-            self.state = "WAIT"; return
-        self.state = "QUOTE"
-        now = time.time()
-        stale_sides = [side for side, d in self.open_orders.items() if now - d['ts'] > self.cancel_timeout]
-        for side in stale_sides:
-            try:
-                await self.client_wrap.cancel_order(symbol=self.symbol, orderId=self.open_orders[side]['orderId'])
-                self._rest_count["cancel_order"] += 1
-            except Exception:
-                pass
-            self.open_orders.pop(side, None)
-        await self._refresh_open_orders()
-        ordertype = ORDER_TYPE_LIMIT_MAKER if (self.enforce_post_only and not self.aggressive_take) else ORDER_TYPE_LIMIT
-        if 'BUY' not in self.open_orders:
-            diagq = self._diagnose_qty(buy_p); qty = diagq["qty"]
-            if qty > 0:
-                try:
-                    order = await self.client_wrap.create_order(
-                        symbol=self.symbol, side=SIDE_BUY, type=ordertype,
-                        quantity=str(qty), price=str(buy_p), timeInForce=TIME_IN_FORCE_GTC
-                    )
-                    self._rest_count["create_order"] += 1
-                    status = order.get('status', 'NEW')
-                    exec_qty = float(order.get('executedQty') or 0.0)
-                    cum_quote = float(order.get('cummulativeQuoteQty') or 0.0)
-                    if status in ('NEW', 'PARTIALLY_FILLED'):
-                        self.open_orders['BUY'] = {'orderId': order['orderId'], 'ts': now, 'status': status,
-                                                   'executedQty': exec_qty, 'cummulativeQuoteQty': cum_quote,
-                                                   'price': float(buy_p)}
-                except Exception as e:
-                    pass
-        if 'SELL' not in self.open_orders:
-            diagq = self._diagnose_qty(sell_p); qty = diagq["qty"]
-            if not self.allow_short:
-                max_sell = float(self.base)
-                qty = min(qty, max_sell) if max_sell > 0 else 0.0
-            if qty > 0:
-                try:
-                    order = await self.client_wrap.create_order(
-                        symbol=self.symbol, side=SIDE_SELL, type=ordertype,
-                        quantity=str(qty), price=str(sell_p), timeInForce=TIME_IN_FORCE_GTC
-                    )
-                    self._rest_count["create_order"] += 1
-                    status = order.get('status', 'NEW')
-                    exec_qty = float(order.get('executedQty') or 0.0)
-                    cum_quote = float(order.get('cummulativeQuoteQty') or 0.0)
-                    if status in ('NEW', 'PARTIALLY_FILLED'):
-                        self.open_orders['SELL'] = {'orderId': order['orderId'], 'ts': now, 'status': status,
-                                                    'executedQty': exec_qty, 'cummulativeQuoteQty': cum_quote,
-                                                    'price': float(sell_p)}
-                except Exception as e:
-                    pass
-
-    async def _refresh_open_orders(self, force: bool = False):
-        if not self.open_orders:
-            return
-        to_drop = []
-        for side, d in list(self.open_orders.items()):
-            try:
-                o = await self.client_wrap.get_order(symbol=self.symbol, orderId=d['orderId'])
-                self._rest_count["get_order"] += 1
-                status = o.get('status')
-                from decimal import Decimal
-                exec_qty = Decimal(str(o.get('executedQty') or 0))
-                cum_quote = Decimal(str(o.get('cummulativeQuoteQty') or 0))
-                liq = o.get('liquidity')
-                prev_exec = Decimal(str(d.get('executedQty') or 0))
-                prev_cum_quote = Decimal(str(d.get('cummulativeQuoteQty') or 0))
-                if exec_qty != prev_exec or cum_quote != prev_cum_quote:
-                    await self._apply_fill_delta(side, prev_exec, prev_cum_quote, exec_qty, cum_quote, liq)
-                d['status'] = status; d['executedQty'] = float(exec_qty); d['cummulativeQuoteQty'] = float(cum_quote)
-                if status not in ('NEW', 'PARTIALLY_FILLED'):
-                    to_drop.append(side)
-            except Exception:
-                pass
-        for s in to_drop:
-            self.open_orders.pop(s, None)
-
-    async def _apply_fill_delta(self, side: str, prev_exec, prev_cum_quote, exec_qty, cum_quote, liquidity):
-        from decimal import Decimal
-        d_exec = exec_qty - prev_exec
-        d_quote = cum_quote - prev_cum_quote
-        if d_exec <= 0:
-            return
-        avg_px = (d_quote / d_exec) if d_exec != 0 else Decimal('0')
-        side_u = (side or "").upper()
-        if side_u == "BUY":
-            self.cash -= d_quote; self.base += d_exec; self.inv_cost_quote += d_quote; self.trades_buy += 1
-        elif side_u == "SELL":
-            avg_cost = (self.inv_cost_quote / self.base) if self.base > 0 else Decimal('0')
-            cost_part = avg_cost * d_exec
-            realized = d_quote - cost_part
-            self.realized_pnl += realized
-            self.cash += d_quote; self.base -= d_exec; self.inv_cost_quote -= cost_part; self.trades_sell += 1
-        self.trades_total += 1
-        if liquidity:
-            l = (liquidity or "").strip().upper()
-            if l in ("MAKER","M"): self.trades_maker += 1
-            elif l in ("TAKER","T"): self.trades_taker += 1
-        if self._last_mid is not None:
-            self._recalc_equity(self._last_mid)
-        try:
-            await self.events_cb({"type":"fill","side":side_u,"qty":float(d_exec),
-                                  "quote":float(d_quote),"avg":float(avg_px),"liq":liquidity})
-            await self.events_cb({"type":"bank","cash":str(self.cash),"base":str(self.base),
-                                  "equity":str(self.equity),"realized":str(self.realized_pnl)})
-        except Exception:
-            pass
-
+    # ----------------- публичный цикл -----------------
     async def run(self):
-        await self.init_symbol_info()
-        tasks = [self._market_depth_loop(), self._aggtrade_loop(), self._stats_loop(), self._bootstrap_loop()]
-        await asyncio.gather(*tasks)
+        self._log(f"MM start for {self.symbol} (shadow={getattr(self.client_wrap, 'shadow', False)})")
+        await asyncio.gather(
+            self._book_ticker_loop(),
+            self._mm_loop()
+        )
+
+    # ----------------- утилиты -----------------
+    def _now(self) -> float:
+        return time.time()
+
+    def _log(self, msg: str):
+        # человекочитаемые логи в UI
+        self._emit({"type": "diag", "text": f"MM: {msg}"})
+
+    def _emit(self, evt: Dict[str, Any]):
+        # единая точка публикации
+        try:
+            cb = self.events_cb
+            if asyncio.iscoroutinefunction(cb):
+                asyncio.create_task(cb(evt))
+            else:
+                # on_event в state умеет и sync dict
+                asyncio.create_task(self.events_cb(evt))  # type: ignore
+        except Exception:
+            # бэкап: не падать, хотя бы синхронно
+            try:
+                self.events_cb(evt)
+            except Exception:
+                pass
+
+    # округление под шаги
+    def _round_price(self, p: float) -> float:
+        step = self._price_step
+        return math.floor(p / step) * step
+
+    def _round_qty(self, q: float) -> float:
+        step = self._qty_step
+        return math.floor(q / step) * step
+
+    def _gen_id(self) -> str:
+        self._id_seq += 1
+        return f"P{self._id_seq:08d}"
+
+    # ----------------- источники рынка -----------------
+    async def _book_ticker_loop(self):
+        """
+        Подписка на лучшую цену. Требует, чтобы client_wrap имел .bm с book_ticker_socket.
+        """
+        sym = self.symbol
+        # ожидать появления bm
+        while not getattr(self.client_wrap, "bm", None):
+            await asyncio.sleep(0.2)
+
+        self._log(f"subscribe bookTicker {sym}")
+        try:
+            async with self.client_wrap.bm.book_ticker_socket(sym) as stream:
+                while True:
+                    msg = await stream.recv()
+                    if not isinstance(msg, dict):
+                        continue
+                    b = msg.get("b")
+                    a = msg.get("a")
+                    if b is not None:
+                        try: self.best_bid = float(b)
+                        except: pass
+                    if a is not None:
+                        try: self.best_ask = float(a)
+                        except: pass
+                    self.ticks_total += 1
+                    # ретранслируем в UI (не обязательно, но полезно)
+                    self._emit({"type": "market", "symbol": sym, "bestBid": self.best_bid, "bestAsk": self.best_ask, "ts": msg.get("E") or int(self._now()*1000)})
+        except asyncio.CancelledError:
+            self._log("bookTicker cancelled")
+            raise
+        except Exception as e:
+            self._log(f"bookTicker error: {e!s}")
+            await asyncio.sleep(1.0)
+            asyncio.create_task(self._book_ticker_loop())
+
+    # ----------------- основной цикл ММ -----------------
+    async def _mm_loop(self):
+        while True:
+            try:
+                await self._step_once()
+            except Exception as e:
+                self._log(f"step error: {e!s}")
+                await asyncio.sleep(0.3)
+            await asyncio.sleep(self.loop_sleep)
+
+    async def _step_once(self):
+        # нет котировок — нечего делать
+        if self.best_bid is None or self.best_ask is None:
+            return
+
+        # симулируем исполнение открытых ордеров по лучшим ценам
+        self._try_fill_by_touch()
+
+        # отменить протухшие
+        self._cancel_expired()
+
+        # переустановить ордера периодически или если сдвинулся мид
+        now = self._now()
+        if now - self._last_reorder_ts >= max(0.3, self.reorder_interval):
+            self._reseed_quotes()
+            self._last_reorder_ts = now
+
+        # обновить метрики
+        self.orders_active = sum(1 for o in self.orders.values() if o.status == "NEW")
+
+    # ----------------- логика котирования -----------------
+    def _reseed_quotes(self):
+        bid = float(self.best_bid or 0.0)
+        ask = float(self.best_ask or 0.0)
+        if bid <= 0.0 or ask <= 0.0:
+            return
+        mid = 0.5 * (bid + ask)
+        spread_pct = 100.0 * (ask - bid) / mid if mid > 0 else 0.0
+
+        # если спред очень узкий и у нас post_only — просто приставимся к краям
+        if spread_pct < max(0.001, self.min_spread_pct):
+            px_buy = self._round_price(bid)    # лучшее bid
+            px_sell = self._round_price(ask)   # лучшее ask
+        else:
+            # поставим чуть «увереннее» внутрь спреда
+            offset = max(1, int((spread_pct/2.0) // 0.01)) * self._price_step
+            px_buy = self._round_price(mid - offset)
+            px_sell = self._round_price(mid + offset)
+
+        # размер по количеству из суммы в котируемой валюте
+        qty_buy = self._round_qty(self.quote_size / max(px_buy, 1e-9))
+        qty_sell = self._round_qty(self.quote_size / max(px_sell, 1e-9))
+
+        # обновим/создадим по одной лимитке с каждой стороны
+        self._upsert_one(side="BUY", price=px_buy, qty=qty_buy)
+        self._upsert_one(side="SELL", price=px_sell, qty=qty_sell)
+
+    def _find_open(self, side: str) -> Optional[PaperOrder]:
+        # выбираем «самый свежий» активный ордер нужной стороны
+        cand = [o for o in self.orders.values() if o.status == "NEW" and o.side == side]
+        if not cand:
+            return None
+        cand.sort(key=lambda o: o.ts_new, reverse=True)
+        return cand[0]
+
+    def _upsert_one(self, side: str, price: float, qty: float):
+        if qty <= 0: return
+        cur = self._find_open(side)
+        if cur and abs(cur.price - price) < 1e-9:
+            # уже стоит по этой же цене — не дергаем
+            return
+
+        # если есть активный — отменим
+        if cur:
+            self._cancel(cur, reason="reseed")
+
+        # поставим новый
+        self._place(side=side, price=price, qty=qty)
+
+    # ----------------- бумажный брокер -----------------
+    def _place(self, side: str, price: float, qty: float):
+        oid = self._gen_id()
+        now = self._now()
+        po = PaperOrder(
+            id=oid, side=side, price=float(price), qty=float(qty),
+            ts_new=now, expires_at=now + float(self.cancel_timeout)
+        )
+        self.orders[oid] = po
+        self.orders_total += 1
+
+        self._emit({
+            "type": "order_event", "evt": "NEW",
+            "id": oid, "symbol": self.symbol,
+            "side": side, "price": po.price, "qty": po.qty,
+            "ts": int(now * 1000)
+        })
+        self._log(f"new {side} {po.qty} @ {po.price}")
+
+    def _cancel(self, po: PaperOrder, reason: str = "cancel"):
+        if po.status != "NEW":
+            return
+        po.status = "CANCELED"
+        now = self._now()
+        self._emit({
+            "type": "order_event", "evt": "CANCELED",
+            "id": po.id, "symbol": self.symbol,
+            "side": po.side, "price": po.price, "qty": po.qty,
+            "reason": reason, "ts": int(now * 1000)
+        })
+        self._log(f"cancel {po.side} {po.qty} @ {po.price} ({reason})")
+
+    def _cancel_expired(self):
+        now = self._now()
+        for po in list(self.orders.values()):
+            if po.status == "NEW" and now >= po.expires_at:
+                self._cancel(po, reason="timeout")
+
+    def _try_fill_by_touch(self):
+        """
+        Простая модель: лимит BUY исполняется, если bestAsk <= наша цена.
+                             лимит SELL исполняется, если bestBid >= наша цена.
+        Исполняем целиком (для простоты).
+        """
+        b = self.best_bid
+        a = self.best_ask
+        if b is None or a is None:
+            return
+        now = self._now()
+
+        for po in list(self.orders.values()):
+            if po.status != "NEW":
+                continue
+            if po.side == "BUY" and a <= po.price:
+                self._fill(po, px=po.price, ts=now)
+            elif po.side == "SELL" and b >= po.price:
+                self._fill(po, px=po.price, ts=now)
+
+    def _fill(self, po: PaperOrder, px: float, ts: float):
+        po.status = "FILLED"
+        po.filled_qty = po.qty
+        self.orders_filled += 1
+
+        # ордер-событие
+        self._emit({
+            "type": "order_event", "evt": "FILLED",
+            "id": po.id, "symbol": self.symbol,
+            "side": po.side, "price": px, "qty": po.qty,
+            "ts": int(ts * 1000)
+        })
+
+        # сделка (P&L считаем нулевым — без инвентаря)
+        self._emit({
+            "type": "trade",
+            "id": f"T{po.id}",
+            "symbol": self.symbol,
+            "side": po.side,
+            "price": px, "qty": po.qty,
+            "pnl": 0.0,
+            "ts": int(ts * 1000)
+        })
+
+        self._log(f"filled {po.side} {po.qty} @ {px}")

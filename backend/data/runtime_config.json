@@ -1,9 +1,48 @@
 ﻿{
-  "features": { "market_widget_feed": true, "risk_protections": true },
-  "api": { "paper": true, "shadow": true },
-  "shadow": { "rest_base": "https://testnet.binance.vision", "ws_base": "wss://testnet.binance.vision/ws" },
-  "ui": { "chart": "lightweight", "theme": "dark" },
-  "strategy": { "symbol": "BNBUSDT", "loop_sleep": 0.2 },
-  "risk": { "max_drawdown_pct": 10, "dd_window_sec": 86400, "stop_duration_sec": 43200, "cooldown_sec": 1800, "min_trades_for_dd": 0 },
-  "history": { "db_path": "data/history.sqlite3", "retention_days": 365 }
+  "features": {
+    "market_widget_feed": true,
+    "risk_protections": true
+  },
+  "api": {
+    "paper": true,
+    "shadow": true
+  },
+  "shadow": {
+    "rest_base": "https://api.binance.com",
+    "ws_base": "wss://stream.binance.com:9443/ws"
+  },
+  "ui": {
+    "chart": "lightweight",
+    "theme": "dark"
+  },
+  "strategy": {
+    "symbol": "DYMUSDT",
+    "quote_size": 10.0,
+    "min_spread_pct": 0.0,
+    "cancel_timeout": 10.0,
+    "post_only": true,
+    "reorder_interval": 1.0,
+    "loop_sleep": 0.2
+  },
+  "risk": {
+    "max_drawdown_pct": 10,
+    "dd_window_sec": 86400,
+    "stop_duration_sec": 43200,
+    "cooldown_sec": 1800,
+    "min_trades_for_dd": 0
+  },
+  "history": {
+    "db_path": "data/history.sqlite3",
+    "retention_days": 365
+  },
+  "scanner": {
+    "enabled": false,
+    "quote": "USDT",
+    "min_vol_usd_24h": 5000000,
+    "max_pairs": 20,
+    "min_spread_bps": 1.0,
+    "interval_sec": 30,
+    "whitelist": [],
+    "blacklist": []
+  }
 }
