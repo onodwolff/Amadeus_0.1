@@ -13,18 +13,29 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-async def _safe_send(ws: WebSocket, msg: Any) -> None:
-    """Отправляем корректно: строки как text, объекты как json."""
+async def _safe_send(ws: WebSocket, msg: Any, timeout: float = 5.0) -> None:
+    """
+    Отправляем корректно: строки как text, объекты как json.
+
+    Если отправка занимает слишком много времени, сообщение будет пропущено.
+    """
     try:
         if isinstance(msg, str):
-            await ws.send_text(msg)
+            await asyncio.wait_for(ws.send_text(msg), timeout)
         else:
-            await ws.send_json(msg)
+            await asyncio.wait_for(ws.send_json(msg), timeout)
+    except asyncio.TimeoutError:
+        # Клиент не успел принять сообщение — просто пропускаем его
+        logger.warning("WebSocket send timed out; dropping message")
     except Exception:
+        logger.exception("WebSocket send failed, falling back to text")
         try:
-            await ws.send_text(json.dumps(msg, default=str, ensure_ascii=False))
+            await asyncio.wait_for(
+                ws.send_text(json.dumps(msg, default=str, ensure_ascii=False)),
+                timeout,
+            )
         except Exception:
-            logger.exception("WebSocket send failed")
+            logger.exception("WebSocket fallback send failed")
 
 
 def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
@@ -75,7 +86,7 @@ async def ws_stream(ws: WebSocket):
     """Стрим событий в UI. Устойчив к отключениям и shutdown."""
     token = ws.query_params.get("token")
     if token != settings.api_token:
-        await ws.close(code=1008)
+        await ws.close(code=1008, reason="Invalid token")
         return
 
     await ws.accept()
@@ -125,9 +136,11 @@ async def ws_stream(ws: WebSocket):
                 except asyncio.CancelledError:
                     break
                 except Exception:
+                    logger.exception("Error getting message from queue")
                     msg = None
 
                 if msg is None:
+                    logger.warning("Queue returned None, closing connection")
                     break
 
                 await _safe_send(ws, msg)
@@ -153,6 +166,6 @@ async def ws_stream(ws: WebSocket):
         except Exception:
             logger.exception("Failed to unsubscribe websocket")
         try:
-            await ws.close()
+            await ws.close(code=1000, reason="Connection closed")
         except Exception:
             logger.exception("Failed to close websocket")
