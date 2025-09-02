@@ -1,53 +1,86 @@
 from __future__ import annotations
 import os
 import yaml
-from typing import Any, Dict, Optional
-from pydantic import Field
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, Field, ValidationError, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-DEFAULT_YAML = {
-    "api": {"paper": True},
-    "shadow": {"enabled": True, "alpha": 0.85, "latency_ms": 120, "post_only_reject": True, "market_slippage_bps": 1.0},
-    "scanner": {
-        "enabled": False,
-        "quote": "USDT",
-        "min_price": 0.0001,
-        "min_vol_usdt_24h": 3_000_000,
-        "top_by_volume": 120,
-        "max_pairs": 60,
-        "min_spread_bps": 5.0,
-        "vol_bars": 0,
-        "score": {"w_spread": 1.0, "w_vol": 0.3},
-        "whitelist": [],
-        "blacklist": [],
-    },
-    "strategy": {
-        "symbol": "BNBUSDT",
-        "quote_size": 10.0,
-        "target_pct": 0.5,
-        "min_spread_pct": 0.0,
-        "cancel_timeout": 10.0,
-        "reorder_interval": 1.0,
-        "depth_level": 5,
-        "maker_fee_pct": 0.1,
-        "taker_fee_pct": 0.1,
-        "econ": {"min_net_pct": 0.10},
-        "post_only": True,
-        "aggressive_take": False,
-        "aggressive_bps": 0.0,
-        "allow_short": False,
-        "status_poll_interval": 2.0,
-        "stats_interval": 30.0,
-        "ws_timeout": 2.0,
-        "bootstrap_on_idle": True,
-        "rest_bootstrap_interval": 3.0,
-        "plan_log_interval": 5.0,
-        "paper_cash": 1000,
-    },
-}
+
+class ApiConfig(BaseModel):
+    paper: bool = True
+    model_config = ConfigDict(extra="forbid")
+
+
+class ShadowConfig(BaseModel):
+    enabled: bool = True
+    alpha: float = 0.85
+    latency_ms: int = 120
+    post_only_reject: bool = True
+    market_slippage_bps: float = 1.0
+    model_config = ConfigDict(extra="forbid")
+
+
+class ScannerScoreConfig(BaseModel):
+    w_spread: float = 1.0
+    w_vol: float = 0.3
+    model_config = ConfigDict(extra="forbid")
+
+
+class ScannerConfig(BaseModel):
+    enabled: bool = False
+    quote: str = "USDT"
+    min_price: float = 0.0001
+    min_vol_usdt_24h: int = 3_000_000
+    top_by_volume: int = 120
+    max_pairs: int = 60
+    min_spread_bps: float = 5.0
+    vol_bars: int = 0
+    score: ScannerScoreConfig = ScannerScoreConfig()
+    whitelist: List[str] = Field(default_factory=list)
+    blacklist: List[str] = Field(default_factory=list)
+    model_config = ConfigDict(extra="forbid")
+
+
+class StrategyEconConfig(BaseModel):
+    min_net_pct: float = 0.10
+    model_config = ConfigDict(extra="forbid")
+
+
+class StrategyConfig(BaseModel):
+    symbol: str = "BNBUSDT"
+    quote_size: float = 10.0
+    target_pct: float = 0.5
+    min_spread_pct: float = 0.0
+    cancel_timeout: float = 10.0
+    reorder_interval: float = 1.0
+    depth_level: int = 5
+    maker_fee_pct: float = 0.1
+    taker_fee_pct: float = 0.1
+    econ: StrategyEconConfig = StrategyEconConfig()
+    post_only: bool = True
+    aggressive_take: bool = False
+    aggressive_bps: float = 0.0
+    allow_short: bool = False
+    status_poll_interval: float = 2.0
+    stats_interval: float = 30.0
+    ws_timeout: float = 2.0
+    bootstrap_on_idle: bool = True
+    rest_bootstrap_interval: float = 3.0
+    plan_log_interval: float = 5.0
+    paper_cash: float = 1000
+    model_config = ConfigDict(extra="forbid")
+
+
+class RuntimeConfig(BaseModel):
+    api: ApiConfig = ApiConfig()
+    shadow: ShadowConfig = ShadowConfig()
+    scanner: ScannerConfig = ScannerConfig()
+    strategy: StrategyConfig = StrategyConfig()
+    model_config = ConfigDict(extra="forbid")
+
 
 class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore", populate_by_name=True)
 
     app_host: str = Field("0.0.0.0", alias="APP_HOST")
     app_port: int = Field(8000, alias="APP_PORT")
@@ -61,32 +94,30 @@ class AppSettings(BaseSettings):
 
     app_config_file: Optional[str] = Field(None, alias="APP_CONFIG_FILE")
 
-    runtime_cfg: Dict[str, Any] = DEFAULT_YAML.copy()
+    default_cfg: Dict[str, Any] = Field(default_factory=lambda: RuntimeConfig().model_dump())
+    runtime_cfg: Dict[str, Any] = Field(default_factory=lambda: RuntimeConfig().model_dump())
 
     def load_yaml(self):
         path = self.app_config_file or os.getenv("APP_CONFIG_FILE") or "./config.yaml"
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8-sig") as f:
-                    y = yaml.safe_load(f) or {}
-                def deep_merge(a, b):
-                    for k, v in b.items():
-                        if isinstance(v, dict) and isinstance(a.get(k), dict):
-                            deep_merge(a[k], v)
-                        else:
-                            a[k] = v
-                cfg = DEFAULT_YAML.copy()
-                deep_merge(cfg, y)
-                self.runtime_cfg = cfg
-            except Exception:
-                self.runtime_cfg = DEFAULT_YAML.copy()
+                    data = yaml.safe_load(f) or {}
+            except yaml.YAMLError as e:
+                raise ValueError(f"Invalid YAML: {e}") from e
+            try:
+                cfg = RuntimeConfig.model_validate(data)
+            except ValidationError as e:
+                raise ValueError(f"Invalid configuration: {e}") from e
+            self.runtime_cfg = cfg.model_dump()
         else:
-            self.runtime_cfg = DEFAULT_YAML.copy()
+            self.runtime_cfg = RuntimeConfig().model_dump()
 
     def dump_yaml(self, path: Optional[str] = None):
         p = path or self.app_config_file or "./config.yaml"
         with open(p, "w", encoding="utf-8") as f:
             yaml.safe_dump(self.runtime_cfg, f, allow_unicode=True, sort_keys=False)
+
 
 settings = AppSettings()
 settings.load_yaml()
