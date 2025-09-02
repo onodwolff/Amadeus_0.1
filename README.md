@@ -19,3 +19,14 @@ All API and WebSocket endpoints require a static bearer token.
    - WebSocket: connect to `/ws?token=<token>`
 
 Changing `API_TOKEN` will invalidate existing clients.
+
+## Testing
+
+1. Install dependencies:
+   ```bash
+   pip install -r backend/requirements.txt
+   ```
+2. Run the test suite:
+   ```bash
+   pytest
+   ```
