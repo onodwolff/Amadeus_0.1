@@ -1,6 +1,7 @@
 import { Injectable, NgZone } from '@angular/core';
 import { Subject } from 'rxjs';
 import { ApiService } from './api.service';
+import { environment } from '../../environments/environment';
 
 /**
  * WS-клиент с авто-реконнектом.
@@ -48,8 +49,7 @@ export class WsService {
         const w: any = window as any;
         let base: string;
         if (w.__WS__)   base = String(w.__WS__);
-        else if (w.__API__)  base = String(w.__API__).replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
-        else base = 'ws://127.0.0.1:8100/ws';
+        else base = environment.apiBaseUrl.replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
         const sep = base.includes('?') ? '&' : '?';
         return `${base}${sep}token=${encodeURIComponent(this.api.token)}`;
     }
