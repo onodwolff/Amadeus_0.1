@@ -7,6 +7,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ...services.state import get_state
+from ...core.config import settings
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -72,6 +73,11 @@ def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
 @router.websocket("/ws")
 async def ws_stream(ws: WebSocket):
     """Стрим событий в UI. Устойчив к отключениям и shutdown."""
+    token = ws.query_params.get("token")
+    if token != settings.api_token:
+        await ws.close(code=1008)
+        return
+
     await ws.accept()
     state = get_state()
 

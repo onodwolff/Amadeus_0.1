@@ -46,8 +46,11 @@ export class WsService {
 
     private _resolveUrl(): string {
         const w: any = window as any;
-        if (w.__WS__)   return String(w.__WS__);
-        if (w.__API__)  return String(w.__API__).replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
-        return 'ws://127.0.0.1:8100/ws';
+        let base: string;
+        if (w.__WS__)   base = String(w.__WS__);
+        else if (w.__API__)  base = String(w.__API__).replace(/^http/, 'ws').replace(/\/$/, '') + '/ws';
+        else base = 'ws://127.0.0.1:8100/ws';
+        const sep = base.includes('?') ? '&' : '?';
+        return `${base}${sep}token=${encodeURIComponent(this.api.token)}`;
     }
 }
