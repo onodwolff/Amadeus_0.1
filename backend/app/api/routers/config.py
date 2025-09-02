@@ -1,125 +1,93 @@
 from __future__ import annotations
-import json
-import os
-from pathlib import Path
-from typing import Any, Dict, Tuple
 
-import yaml
-from fastapi import APIRouter, Body, HTTPException
+import json
+from typing import Any, Dict, Optional
+
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import JSONResponse
+
+from ...core.config import settings
 from ...services.state import get_state
 
 router = APIRouter(prefix="/config", tags=["config"])
 
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-CFG_FILE = DATA_DIR / "runtime_config.json"
-CFG_BAK  = DATA_DIR / "runtime_config.bak.json"
 
-DEFAULT_CFG: Dict[str, Any] = {
-    "features": {"market_widget_feed": True, "risk_protections": True},
-    "api": {"paper": True, "shadow": True},
-    "shadow": {"rest_base": "https://testnet.binance.vision", "ws_base": "wss://testnet.binance.vision/ws"},
-    "ui": {"chart": "lightweight", "theme": "dark"},
-    "strategy": {"symbol": "BNBUSDT", "loop_sleep": 0.2},
-    "risk": {
-        "max_drawdown_pct": 10, "dd_window_sec": 86400,
-        "stop_duration_sec": 43200, "cooldown_sec": 1800, "min_trades_for_dd": 0
-    },
-    "history": {"db_path": "data/history.sqlite3", "retention_days": 365},
-}
-
-def _to_dict_maybe(s: Any) -> Tuple[Dict[str, Any], str]:
+def _normalize_cfg(payload: Any) -> Dict[str, Any]:
     """
-    Преобразуем вход в dict:
-    - если уже dict — ок;
-    - если str — пробуем JSON, затем YAML; иначе 400.
-    Возвращаем (dict, canonical_json).
+    Принимаем как { "cfg": {...} }, так и "сырой" объект {...}.
+    Возвращаем словарь-конфиг.
     """
-    if isinstance(s, dict):
-        return s, json.dumps(s, ensure_ascii=False)
-    if isinstance(s, str):
-        txt = s.strip()
-        if not txt:
-            raise HTTPException(status_code=400, detail="Empty config")
-        # JSON сначала
-        try:
-            obj = json.loads(txt)
-            if isinstance(obj, dict):
-                return obj, json.dumps(obj, ensure_ascii=False)
-        except Exception:
-            pass
-        # затем YAML
-        try:
-            obj = yaml.safe_load(txt)
-            if isinstance(obj, dict):
-                return obj, json.dumps(obj, ensure_ascii=False)
-        except Exception:
-            pass
-        raise HTTPException(status_code=400, detail="Config must be a JSON/YAML object")
-    raise HTTPException(status_code=400, detail="Unsupported config payload")
-
-def _save_with_backup(js: str) -> None:
-    if CFG_FILE.exists():
-        try:
-            CFG_BAK.write_text(CFG_FILE.read_text(encoding="utf-8"), encoding="utf-8")
-        except Exception:
-            pass
-    CFG_FILE.write_text(js, encoding="utf-8")
-
-def _load_from_disk() -> Dict[str, Any]:
-    if not CFG_FILE.exists():
+    if payload is None:
         return {}
-    try:
-        txt = CFG_FILE.read_text(encoding="utf-8")
-        return json.loads(txt)
-    except Exception:
-        return {}
+    if isinstance(payload, dict):
+        if "cfg" in payload and isinstance(payload["cfg"], dict):
+            return payload["cfg"]
+        return payload
+    raise HTTPException(status_code=400, detail="Config must be JSON object")
+
 
 @router.get("")
 async def get_config():
-    """Всегда отдаём валидный JSON-объект."""
-    st = get_state()
-    cfg = st.cfg or {}
-    # если в памяти пусто — пробуем диск, иначе дефолт
-    if not cfg:
-        disk = _load_from_disk()
-        cfg = disk if isinstance(disk, dict) and disk else DEFAULT_CFG
-        st.set_cfg(cfg)
+    """
+    Текущая runtime-конфигурация.
+    """
+    cfg = settings.runtime_cfg or {}
     return {"cfg": cfg}
 
+
 @router.put("")
-async def put_config(body: Any = Body(..., media_type="application/json")):
+async def put_config(request: Request):
     """
-    Принимаем строку или объект.
-    - Строка: парсим как JSON, потом YAML.
-    - Объект: валидируем что это dict.
-    Сохраняем на диск (с бэкапом), применяем в State.
+    Обновить конфиг (idempotent). Тело: либо {"cfg":{...}}, либо просто {...}.
     """
-    # FastAPI сам валидирует JSON-тело; если пришла пустота — вернёт 422. :contentReference[oaicite:4]{index=4}
-    cfg_dict, canonical_json = _to_dict_maybe(body)
-    _save_with_backup(canonical_json)
-    st = get_state()
-    st.set_cfg(cfg_dict)
-    return {"ok": True, "cfg": cfg_dict}
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    new_cfg = _normalize_cfg(data)
+
+    # Простейшая валидация (не строгая, чтобы не мешать работе UI)
+    if not isinstance(new_cfg, dict):
+        raise HTTPException(status_code=400, detail="Config must be object")
+
+    # сохраняем в settings и state
+    settings.runtime_cfg = new_cfg
+    state = get_state()
+    state.cfg = new_cfg
+
+    return {"ok": True, "cfg": new_cfg}
+
+
+@router.post("")
+async def post_config(request: Request):
+    """
+    Alias к PUT: принимаем POST на тот же эндпоинт для совместимости со старым фронтом.
+    """
+    return await put_config(request)
+
+
+@router.get("/default")
+async def get_default_config():
+    """
+    Отдать дефолтный конфиг, если есть. Если нет — возвращаем текущий как наименее удивляющий вариант.
+    """
+    default_cfg = getattr(settings, "default_cfg", None)
+    if not isinstance(default_cfg, dict):
+        default_cfg = settings.runtime_cfg or {}
+    return {"cfg": default_cfg}
+
 
 @router.post("/restore")
 async def restore_config():
-    """Откат к последнему бэкапу (если есть)."""
-    if not CFG_BAK.exists():
-        raise HTTPException(status_code=404, detail="No backup config")
-    try:
-        txt = CFG_BAK.read_text(encoding="utf-8")
-        obj = json.loads(txt)
-        if not isinstance(obj, dict):
-            raise ValueError("backup not dict")
-        CFG_FILE.write_text(txt, encoding="utf-8")
-        st = get_state()
-        st.set_cfg(obj)
-        return {"ok": True, "cfg": obj}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
-
-@router.get("/default")
-async def get_default():
-    """Вернуть дефолтный конфиг (для кнопки 'Сброс')."""
-    return {"cfg": DEFAULT_CFG}
+    """
+    В «мягком» варианте просто возвращаем текущий runtime как подтверждение.
+    Если хочешь, можно здесь перечитывать YAML/JSON с диска.
+    """
+    cfg = settings.runtime_cfg or {}
+    # пример, если решишь считать YAML/JSON с диска:
+    # settings.load_yaml()
+    # cfg = settings.runtime_cfg or {}
+    state = get_state()
+    state.cfg = cfg
+    return {"ok": True, "cfg": cfg}

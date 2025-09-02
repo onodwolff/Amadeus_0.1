@@ -1,44 +1,90 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, timer } from 'rxjs';
-import { switchMap, catchError } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of, timer } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
+
+/** Статус бота: расширен под dashboard (metrics?, cfg?) */
+export interface BotStatus {
+  running: boolean;
+  symbol?: string;
+  equity?: number;
+  ts?: number;
+  metrics?: any;
+  cfg?: any;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  readonly api = 'http://127.0.0.1:8100/api';
+  private readonly baseRoot: string = ((window as any).__API__ || 'http://127.0.0.1:8100').replace(/\/$/, '');
+  readonly api: string = this.baseRoot + '/api';
 
-  // Глобальное состояние запуска бота
+  /** Шарим статус запуска бота между компонентами */
   readonly running$ = new BehaviorSubject<boolean>(false);
 
   constructor(private http: HttpClient) {
-    // Периодический пул статуса на случай потери WS
+    // Бэкап к WS: лёгкий пул статуса
     timer(0, 2000).pipe(
-        switchMap(() => this.status()),
-        catchError(() => {
-          // если бэкенд недоступен — не трогаем текущее значение
-          return [];
-        })
-    ).subscribe((s: any) => {
+        switchMap(() => this.status().pipe(catchError(() => of<BotStatus | null>(null))))
+    ).subscribe((s) => {
       if (s && typeof s.running === 'boolean') this.running$.next(!!s.running);
     });
   }
 
-  // ручная установка (WS дергает сюда)
   setRunning(v: boolean) { this.running$.next(!!v); }
 
-  // BOT
-  status(): Observable<any> { return this.http.get(`${this.api}/bot/status`); }
-  start(): Observable<any> { return this.http.post(`${this.api}/bot/start`, {}); }
-  stop():  Observable<any> { return this.http.post(`${this.api}/bot/stop`,  {}); }
+  // ------------ BOT ------------
+  status(): Observable<BotStatus> { return this.http.get<BotStatus>(`${this.api}/bot/status`); }
+  start():  Observable<any>       { return this.http.post(`${this.api}/bot/start`, {}); }
+  stop():   Observable<any>       { return this.http.post(`${this.api}/bot/stop`,  {}); }
 
-  // CONFIG
-  getConfig(): Observable<any> { return this.http.get(`${this.api}/config`); }
-  putConfig(cfg: any): Observable<any> { return this.http.post(`${this.api}/config`, cfg); }
+  // ----------- SCANNER ---------
+  scan(): Observable<any>         { return this.http.post(`${this.api}/scanner/scan`, {}); }
 
-  // RISK
+  // ----------- CONFIG ----------
+  getConfig(): Observable<any>    { return this.http.get(`${this.api}/config`); }
+
+  /**
+   * Универсальный сейв конфигурации:
+   * 1) PUT {cfg} → 2) PUT raw → 3) POST {cfg} → 4) POST raw
+   * Это гасит 405/400/422 при несовпадении контракта.
+   */
+  putConfig(cfg: any): Observable<any> {
+    const url = `${this.api}/config`;
+    const bodyWrapped = { cfg };
+    const bodyRaw = cfg;
+
+    return this.http.put(url, bodyWrapped).pipe(
+        catchError(err1 => {
+          if ([405, 400, 415, 422].includes(err1?.status)) {
+            return this.http.put(url, bodyRaw).pipe(
+                catchError(err2 => {
+                  if ([405, 400, 415, 422].includes(err2?.status)) {
+                    return this.http.post(url, bodyWrapped).pipe(
+                        catchError(err3 => {
+                          if ([405, 400, 415, 422].includes(err3?.status)) {
+                            return this.http.post(url, bodyRaw);
+                          }
+                          throw err3;
+                        })
+                    );
+                  }
+                  throw err2;
+                })
+            );
+          }
+          throw err1;
+        })
+    );
+  }
+
+  getDefaultConfig(): Observable<any> { return this.http.get(`${this.api}/config/default`); }
+  restoreConfig():    Observable<any> { return this.http.post(`${this.api}/config/restore`, {}); }
+
+  // ------------ RISK -----------
   getRiskStatus(): Observable<any> { return this.http.get(`${this.api}/risk/status`); }
+  unlockRisk():    Observable<any> { return this.http.post(`${this.api}/risk/unlock`, {}); }
 
-  // HISTORY
+  // ----------- HISTORY ---------
   historyOrders(limit = 200, offset = 0): Observable<any> {
     return this.http.get(`${this.api}/history/orders?limit=${limit}&offset=${offset}`);
   }

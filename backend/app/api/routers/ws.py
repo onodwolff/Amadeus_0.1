@@ -1,18 +1,147 @@
 from __future__ import annotations
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from ...deps import state_dep
 
-router = APIRouter(tags=["ws"])
+import asyncio
+import json
+from typing import Any, Callable, Optional
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from ...services.state import get_state
+
+router = APIRouter()
+
+
+async def _safe_send(ws: WebSocket, msg: Any) -> None:
+    """Отправляем корректно: строки как text, объекты как json."""
+    try:
+        if isinstance(msg, str):
+            await ws.send_text(msg)
+        else:
+            await ws.send_json(msg)
+    except Exception:
+        try:
+            await ws.send_text(json.dumps(msg, default=str, ensure_ascii=False))
+        except Exception:
+            pass
+
+
+def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
+    """
+    Подписка на события state.
+    Важно: работаем ИМЕННО с той очередью, которую слушает роутер.
+    """
+    q: asyncio.Queue = asyncio.Queue(maxsize=1000)
+
+    # Предпочитаем state.ws_subscribe(q) -> unsub
+    if hasattr(state, "ws_subscribe"):
+        unsub = state.ws_subscribe(q)  # type: ignore
+        return q, unsub
+
+    # Совместимость: register/unregister
+    if hasattr(state, "register_ws"):
+        # добавим q напрямую в пул
+        if hasattr(state, "_clients") and isinstance(getattr(state, "_clients"), set):
+            getattr(state, "_clients").add(q)
+        def _unsub():
+            try:
+                state.unregister_ws(q)  # type: ignore
+            except Exception:
+                try:
+                    if hasattr(state, "_clients") and isinstance(getattr(state, "_clients"), set):
+                        getattr(state, "_clients").discard(q)
+                except Exception:
+                    pass
+        return q, _unsub
+
+    # Фолбэк на приватное множество
+    target_set_name = "_clients" if hasattr(state, "_clients") else "_ws_clients"
+    client_set = getattr(state, target_set_name, None)
+    if isinstance(client_set, set):
+        client_set.add(q)
+    def _unsub():
+        try:
+            if isinstance(client_set, set):
+                client_set.discard(q)
+        except Exception:
+            pass
+    return q, _unsub
+
 
 @router.websocket("/ws")
-async def ws_stream(ws: WebSocket, state = Depends(state_dep)):
+async def ws_stream(ws: WebSocket):
+    """Стрим событий в UI. Устойчив к отключениям и shutdown."""
     await ws.accept()
-    q = state.register_ws()
+    state = get_state()
+
+    q, unsub = _subscribe(state)
+
+    recv_task: Optional[asyncio.Task] = None
+    send_task: Optional[asyncio.Task] = None
+
     try:
+        # привет + первичный статус
+        await _safe_send(ws, {"type": "hello", "version": "1.0"})
+        try:
+            cfg = getattr(state, "cfg", {}) or {}
+            symbol = (cfg.get("strategy") or {}).get("symbol")
+            await _safe_send(ws, {
+                "type": "status",
+                "running": bool(state.is_running()) if hasattr(state, "is_running") else False,
+                "equity": getattr(state, "equity", None),
+                "symbol": symbol,
+            })
+        except Exception:
+            pass
+
+        recv_task = asyncio.create_task(ws.receive_text())
+        send_task = asyncio.create_task(q.get())
+
         while True:
-            data = await q.get()
-            await ws.send_text(data)
+            done, _ = await asyncio.wait({recv_task, send_task}, return_when=asyncio.FIRST_COMPLETED)
+
+            # входящие (пинги) — читаем и игнорим
+            if recv_task in done:
+                try:
+                    _ = recv_task.result()
+                except WebSocketDisconnect:
+                    break
+                except Exception:
+                    pass
+                finally:
+                    recv_task = asyncio.create_task(ws.receive_text())
+
+            # исходящие
+            if send_task in done:
+                try:
+                    msg = send_task.result()
+                except asyncio.CancelledError:
+                    break
+                except Exception:
+                    msg = None
+
+                if msg is None:
+                    break
+
+                await _safe_send(ws, msg)
+                send_task = asyncio.create_task(q.get())
+
     except WebSocketDisconnect:
         pass
+    except asyncio.CancelledError:
+        pass
     finally:
-        state.unregister_ws(q)
+        try:
+            if recv_task: recv_task.cancel()
+        except Exception:
+            pass
+        try:
+            if send_task: send_task.cancel()
+        except Exception:
+            pass
+        try:
+            unsub()
+        except Exception:
+            pass
+        try:
+            await ws.close()
+        except Exception:
+            pass

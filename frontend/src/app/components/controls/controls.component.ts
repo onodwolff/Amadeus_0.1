@@ -1,30 +1,71 @@
-import { Component } from '@angular/core';
-import { ApiService } from '../../services/api.service';
-import { MatButtonModule } from '@angular/material/button';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { AppMaterialModule } from '../../app.module';
+import { ApiService } from '../../services/api.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { Subscription, timer } from 'rxjs';
 
 @Component({
   selector: 'app-controls',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatSlideToggleModule, MatSnackBarModule],
+  imports: [CommonModule, AppMaterialModule],
   templateUrl: './controls.component.html',
   styleUrls: ['./controls.component.css']
 })
-export class ControlsComponent {
+export class ControlsComponent implements OnDestroy {
   running = false;
-  constructor(private api: ApiService, private snack: MatSnackBar) { this.refresh(); }
+  busy = false;
+  sub?: Subscription;
+  autoRefreshSub?: Subscription;
 
-  refresh() { this.api.status().subscribe((s:any) => this.running = !!s.running); }
-  start() { this.api.start().subscribe(_ => { this.running = true; this.snack.open('Старт', 'OK', {duration:1200}); }); }
-  stop()  { this.api.stop().subscribe(_ => { this.running = false; this.snack.open('Стоп', 'OK', {duration:1200}); }); }
-  scan()  {
-    this.api.scan().subscribe((res:any) => {
-      const best = res?.best?.symbol || '—';
-      this.snack.open('Лучшая пара: ' + best, 'OK', {duration:2000});
-      const el = document.getElementById('scanner-results');
-      if (el) el.innerText = JSON.stringify(res, null, 2);
+  constructor(private api: ApiService, private snack: MatSnackBar) {
+    // глобальный стейт запуска бота
+    this.sub = this.api.running$.subscribe(v => this.running = !!v);
+    // лёгкий авто-рефреш статуса (как запасной канал, если WS не пришёл)
+    this.autoRefreshSub = timer(0, 5000).subscribe(_ => this.refresh());
+  }
+
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+    this.autoRefreshSub?.unsubscribe();
+  }
+
+  refresh() {
+    this.api.status().subscribe({
+      next: s => { this.running = !!s?.running; },
+      error: _ => {}
+    });
+  }
+
+  async doStart() {
+    if (this.busy || this.running) return;
+    this.busy = true;
+    this.api.start().subscribe({
+      next: _ => {
+        this.api.setRunning(true);
+        this.running = true;
+        this.snack.open('Старт', 'OK', { duration: 1200 });
+      },
+      error: err => {
+        this.snack.open(`Ошибка старта: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 });
+      },
+      complete: () => { this.busy = false; }
+    });
+  }
+
+  async doStop() {
+    if (this.busy || !this.running) return;
+    this.busy = true;
+    this.api.stop().subscribe({
+      next: _ => {
+        this.api.setRunning(false);
+        this.running = false;
+        this.snack.open('Стоп', 'OK', { duration: 1200 });
+      },
+      error: err => {
+        this.snack.open(`Ошибка остановки: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 });
+      },
+      complete: () => { this.busy = false; }
     });
   }
 }

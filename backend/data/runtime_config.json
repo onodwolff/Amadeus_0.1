@@ -1,18 +1,15 @@
 ﻿{
-  "features": {
-    "market_widget_feed": true,
-    "risk_protections": true
-  },
   "api": {
     "paper": true,
-    "shadow": true
+    "shadow": true,
+    "autostart": false
   },
   "shadow": {
     "rest_base": "https://api.binance.com",
     "ws_base": "wss://stream.binance.com:9443/ws"
   },
   "ui": {
-    "chart": "lightweight",
+    "chart": "tv",
     "theme": "dark"
   },
   "strategy": {

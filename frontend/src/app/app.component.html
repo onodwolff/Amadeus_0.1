@@ -1,25 +1,23 @@
-<!-- ШАПКА -->
 <header class="topbar">
     <div class="brand">{{ title }}</div>
     <div class="spacer"></div>
 
-    <!-- Иконка Сканера -->
-    <button mat-icon-button aria-label="Сканер" (click)="openScanner()" matTooltip="Сканер рынков">
-        <mat-icon>travel_explore</mat-icon>
+    <!-- Переключатель графика TV/Lightweight -->
+    <button mat-icon-button aria-label="Chart mode" (click)="toggleChart()" matTooltip="Переключить график (TV/Lightweight)">
+        <mat-icon>candlestick_chart</mat-icon>
     </button>
 
-    <!-- Иконка Истории -->
+    <!-- История -->
     <button mat-icon-button aria-label="История" (click)="openHistory()" matTooltip="История / Live">
         <mat-icon>history</mat-icon>
     </button>
 
-    <!-- Иконка Настроек -->
+    <!-- Настройки -->
     <button mat-icon-button aria-label="Настройки" (click)="openConfig()" matTooltip="Настройки">
         <mat-icon>tune</mat-icon>
     </button>
 </header>
 
-<!-- УПРАВЛЕНИЕ -->
 <section class="section">
     <app-controls></app-controls>
 </section>
@@ -36,223 +34,39 @@
     </div>
 </section>
 
-<!-- РЯД 2: График и Логи 50/50 -->
+<!-- РЯД 2: График и Логи — 50/50 и одинаковая высота -->
 <section class="section">
-    <div class="grid grid-2">
-        <div class="card" *ngIf="isTv()">
-            <app-tv-advanced></app-tv-advanced>
+    <div class="row-tv-logs">
+        <div class="card">
+            <div class="fill" *ngIf="isTv()">
+                <app-tv-advanced></app-tv-advanced>
+            </div>
+            <div class="fill" *ngIf="!isTv()">
+                <!-- если используешь lightweight — подставь свой компонент -->
+                <app-tv-advanced></app-tv-advanced>
+            </div>
         </div>
-        <div class="card" [class.wide]="!isTv()">
-            <h3>Логи</h3>
+        <div class="card">
             <app-logs></app-logs>
         </div>
     </div>
 </section>
 
-<!-- РИСК + сводка -->
+<!-- Риск — отдельная секция, ниже графика -->
 <section class="section">
     <div class="card">
         <h3>Риск / Protections</h3>
-
         <div class="risk-summary" *ngIf="risk; else noRisk">
-            <div class="item">
-                <div class="k">DD max %</div>
-                <div class="v">{{ risk.max_drawdown_pct ?? cfg.risk.max_drawdown_pct }}</div>
-            </div>
-            <div class="item">
-                <div class="k">Locked</div>
-                <div class="v">{{ risk.locked ? 'Yes' : 'No' }}</div>
-            </div>
-            <div class="item">
-                <div class="k">Cooldown</div>
-                <div class="v">{{ risk.cooldown_left_sec || 0 }}s</div>
-            </div>
-            <div class="item">
-                <div class="k">MinTrades for DD</div>
-                <div class="v">{{ risk.min_trades_for_dd ?? cfg.risk.min_trades_for_dd }}</div>
-            </div>
+            <div class="risk-item"><div class="k">DD max %</div><div class="v">{{ risk.max_drawdown_pct ?? cfg.risk?.max_drawdown_pct }}</div></div>
+            <div class="risk-item"><div class="k">Locked</div><div class="v">{{ risk.locked ? 'Yes' : 'No' }}</div></div>
+            <div class="risk-item"><div class="k">Cooldown</div><div class="v">{{ risk.cooldown_left_sec || 0 }}s</div></div>
+            <div class="risk-item"><div class="k">MinTrades for DD</div><div class="v">{{ risk.min_trades_for_dd ?? cfg.risk?.min_trades_for_dd }}</div></div>
             <button mat-stroked-button (click)="refreshRisk()">Обновить</button>
         </div>
-        <ng-template #noRisk>
-            <div class="muted">Нет данных риска (возможно, защита выключена).</div>
-        </ng-template>
-
-        <div style="margin-top:10px">
-            <app-guards></app-guards>
-        </div>
+        <ng-template #noRisk><div class="muted">Нет данных риска.</div></ng-template>
+        <div class="guards-wrap"><app-guards></app-guards></div>
     </div>
 </section>
-
-<!-- =================== ОВЕРЛЕЙ: НАСТРОЙКИ =================== -->
-<div class="overlay" *ngIf="showConfig" (click)="closeOverlays()">
-    <div class="panel" (click)="$event.stopPropagation()">
-        <div class="panel-head">
-            <div class="title">Настройки</div>
-            <button mat-icon-button (click)="closeOverlays()"><mat-icon>close</mat-icon></button>
-        </div>
-
-        <div class="panel-body">
-
-            <div class="group">
-                <div class="group-title">Режим</div>
-                <div class="row">
-                    <mat-slide-toggle [(ngModel)]="cfg.api.paper">Paper</mat-slide-toggle>
-                    <mat-slide-toggle [(ngModel)]="cfg.api.shadow">Shadow</mat-slide-toggle>
-                </div>
-            </div>
-
-            <div class="group">
-                <div class="group-title">Биржа (реальные котировки)</div>
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w100">
-                        <mat-label>REST base</mat-label>
-                        <input matInput [(ngModel)]="cfg.shadow.rest_base" placeholder="https://api.binance.com">
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="w100">
-                        <mat-label>WS base</mat-label>
-                        <input matInput [(ngModel)]="cfg.shadow.ws_base" placeholder="wss://stream.binance.com:9443/ws">
-                    </mat-form-field>
-                </div>
-            </div>
-
-            <div class="group">
-                <div class="group-title">Стратегия (скальпер)</div>
-
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w50">
-                        <mat-label>Символ</mat-label>
-                        <input matInput [(ngModel)]="cfg.strategy.symbol" placeholder="BNBUSDT">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w50">
-                        <mat-label>Размер (USDT)</mat-label>
-                        <input matInput type="number" min="0.000001" step="0.01" [(ngModel)]="cfg.strategy.quote_size">
-                    </mat-form-field>
-                </div>
-
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w33">
-                        <mat-label>Min spread, %</mat-label>
-                        <input matInput type="number" min="0" step="0.01" [(ngModel)]="cfg.strategy.min_spread_pct">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w33">
-                        <mat-label>Cancel timeout, s</mat-label>
-                        <input matInput type="number" min="1" step="1" [(ngModel)]="cfg.strategy.cancel_timeout">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w33">
-                        <mat-label>Reorder interval, s</mat-label>
-                        <input matInput type="number" min="0.1" step="0.1" [(ngModel)]="cfg.strategy.reorder_interval">
-                    </mat-form-field>
-                </div>
-
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w33">
-                        <mat-label>Loop sleep, s</mat-label>
-                        <input matInput type="number" min="0.05" step="0.05" [(ngModel)]="cfg.strategy.loop_sleep">
-                    </mat-form-field>
-
-                    <mat-slide-toggle [(ngModel)]="cfg.strategy.post_only">Post Only</mat-slide-toggle>
-                </div>
-            </div>
-
-            <div class="group">
-                <div class="group-title">UI</div>
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w50">
-                        <mat-label>Chart</mat-label>
-                        <select matNativeControl [(ngModel)]="cfg.ui.chart">
-                            <option value="lightweight">Lightweight</option>
-                            <option value="tv">TradingView</option>
-                            <option value="none">None</option>
-                        </select>
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w50">
-                        <mat-label>Theme</mat-label>
-                        <select matNativeControl [(ngModel)]="cfg.ui.theme">
-                            <option value="dark">Dark</option>
-                            <option value="light">Light</option>
-                        </select>
-                    </mat-form-field>
-                </div>
-            </div>
-
-        </div>
-
-        <div class="panel-actions">
-            <button mat-stroked-button (click)="closeOverlays()">Отмена</button>
-            <button mat-flat-button color="primary" (click)="saveConfig()">Сохранить</button>
-        </div>
-    </div>
-</div>
-
-<!-- ==================== ОВЕРЛЕЙ: СКАНЕР ==================== -->
-<div class="overlay" *ngIf="showScanner" (click)="closeOverlays()">
-    <div class="panel" (click)="$event.stopPropagation()">
-        <div class="panel-head">
-            <div class="title">Сканер рынков</div>
-            <button mat-icon-button (click)="closeOverlays()"><mat-icon>close</mat-icon></button>
-        </div>
-
-        <div class="panel-body">
-            <div class="group">
-                <div class="row">
-                    <mat-slide-toggle [(ngModel)]="cfg.scanner.enabled">Включить сканер</mat-slide-toggle>
-                </div>
-            </div>
-
-            <div class="group">
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w25">
-                        <mat-label>Котировка</mat-label>
-                        <input matInput [(ngModel)]="cfg.scanner.quote" placeholder="USDT">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w25">
-                        <mat-label>Мин. объём 24ч, $</mat-label>
-                        <input matInput type="number" min="0" step="100000" [(ngModel)]="cfg.scanner.min_vol_usd_24h">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w25">
-                        <mat-label>Макс. пар</mat-label>
-                        <input matInput type="number" min="1" step="1" [(ngModel)]="cfg.scanner.max_pairs">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="w25">
-                        <mat-label>Мин. спред, bps</mat-label>
-                        <input matInput type="number" min="0" step="0.1" [(ngModel)]="cfg.scanner.min_spread_bps">
-                    </mat-form-field>
-                </div>
-
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w25">
-                        <mat-label>Интервал, s</mat-label>
-                        <input matInput type="number" min="5" step="5" [(ngModel)]="cfg.scanner.interval_sec">
-                    </mat-form-field>
-                </div>
-
-                <div class="row">
-                    <mat-form-field appearance="outline" class="w50">
-                        <mat-label>Whitelist (через запятую)</mat-label>
-                        <input matInput [(ngModel)]="whitelistText" placeholder="BTCUSDT, ETHUSDT">
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="w50">
-                        <mat-label>Blacklist (через запятую)</mat-label>
-                        <input matInput [(ngModel)]="blacklistText" placeholder="...">
-                    </mat-form-field>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel-actions">
-            <button mat-stroked-button (click)="closeOverlays()">Закрыть</button>
-            <button mat-stroked-button color="primary" (click)="saveConfig()">Сохранить</button>
-            <button mat-flat-button color="primary" (click)="triggerScan()">Запустить скан</button>
-        </div>
-    </div>
-</div>
 
 <!-- ===================== ОВЕРЛЕЙ: ИСТОРИЯ ===================== -->
 <div class="overlay" *ngIf="showHistory" (click)="closeOverlays()">
@@ -266,12 +80,12 @@
             <button mat-icon-button (click)="closeOverlays()"><mat-icon>close</mat-icon></button>
         </div>
 
-        <!-- LIVE: последние 20, со скроллом -->
+        <!-- LIVE -->
         <div class="panel-body" *ngIf="histTab==='live'">
             <div class="group">
                 <div class="group-title">Активные ордера (последние 20)</div>
                 <div class="scroll">
-                    <table class="tbl">
+                    <table class="tbl small">
                         <thead>
                         <tr><th>ID</th><th>Side</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th></tr>
                         </thead>
@@ -293,7 +107,7 @@
             <div class="group">
                 <div class="group-title">Сделки (последние 20)</div>
                 <div class="scroll">
-                    <table class="tbl">
+                    <table class="tbl small">
                         <thead>
                         <tr><th>ID</th><th>Side</th><th>Price</th><th>Qty</th><th>PNL</th><th>Time</th></tr>
                         </thead>
@@ -313,23 +127,18 @@
             </div>
         </div>
 
-        <!-- DB: таблицы с нужными колонками -->
+        <!-- DB -->
         <div class="panel-body" *ngIf="histTab==='db'">
             <div class="group">
-                <div class="group-title" style="display:flex;align-items:center;gap:8px;">
-                    <span>Orders (DB)</span>
-                    <span class="muted">/ {{ dbOrders.length }}</span>
+                <div class="group-title-row">
+                    <span>Orders (DB)</span><span class="muted">/ {{ dbOrders.length }}</span>
                     <span class="spacer"></span>
-                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">
-                        {{ dbLoading ? 'Загрузка...' : 'Обновить' }}
-                    </button>
+                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">{{ dbLoading ? 'Загрузка...' : 'Обновить' }}</button>
                 </div>
                 <div class="scroll">
-                    <table class="tbl">
+                    <table class="tbl small">
                         <thead>
-                        <tr>
-                            <th>Event</th><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th>
-                        </tr>
+                        <tr><th>Event</th><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th></tr>
                         </thead>
                         <tbody>
                         <tr *ngFor="let r of dbOrders">
@@ -349,20 +158,15 @@
             </div>
 
             <div class="group">
-                <div class="group-title" style="display:flex;align-items:center;gap:8px;">
-                    <span>Trades (DB)</span>
-                    <span class="muted">/ {{ dbTrades.length }}</span>
+                <div class="group-title-row">
+                    <span>Trades (DB)</span><span class="muted">/ {{ dbTrades.length }}</span>
                     <span class="spacer"></span>
-                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">
-                        {{ dbLoading ? 'Загрузка...' : 'Обновить' }}
-                    </button>
+                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">{{ dbLoading ? 'Загрузка...' : 'Обновить' }}</button>
                 </div>
                 <div class="scroll">
-                    <table class="tbl">
+                    <table class="tbl small">
                         <thead>
-                        <tr>
-                            <th>Event</th><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th>
-                        </tr>
+                        <tr><th>Event</th><th>Symbol</th><th>Side</th><th>Type</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th></tr>
                         </thead>
                         <tbody>
                         <tr *ngFor="let r of dbTrades">
@@ -380,9 +184,7 @@
                     </table>
                 </div>
             </div>
-
-            <!-- (опционально) Встроенный старый компонент -->
-            <!-- <div class="group"><app-history></app-history></div> -->
         </div>
+
     </div>
 </div>

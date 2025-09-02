@@ -3,12 +3,13 @@ import { CommonModule } from '@angular/common';
 import { AppMaterialModule } from '../../app.module';
 import { WsService } from '../../services/ws.service';
 
-interface OrderRow {
-    id: string; side: 'BUY'|'SELL'; price: number; qty: number; status: string; ts: number;
-}
-
-interface TradeRow {
-    id: string; side: 'BUY'|'SELL'; price: number; qty: number; pnl: number; ts: number;
+interface LiveOrder {
+    id: string;
+    side: 'BUY'|'SELL';
+    price: number;
+    qty: number;
+    status: string;
+    ts: number;
 }
 
 @Component({
@@ -19,43 +20,31 @@ interface TradeRow {
     styleUrls: ['./orders-widget.component.css']
 })
 export class OrdersWidgetComponent {
-    open: Record<string, OrderRow> = {};
-    recent: TradeRow[] = [];
+    // полный поток без лимита (с удержанием разумного окна)
+    orders: LiveOrder[] = [];
+    maxKeep = 500;
 
-    constructor(ws: WsService) {
-        ws.connect();
-        ws.messages$.subscribe((msg: any) => {
+    constructor(private ws: WsService) {}
+
+    ngOnInit() {
+        this.ws.connect();
+        this.ws.messages$.subscribe((msg: any) => {
             if (!msg || typeof msg !== 'object') return;
             if (msg.type === 'order_event') {
-                const id = String(msg.id);
-                const row: OrderRow = {
-                    id,
-                    side: (msg.side || 'BUY').toUpperCase(),
-                    price: Number(msg.price || 0),
-                    qty: Number(msg.qty || 0),
-                    status: String(msg.evt || 'NEW'),
-                    ts: Number(msg.ts || Date.now())
-                };
-                if (row.status === 'NEW') this.open[id] = row;
-                else {
-                    // обновим и уберём из открытых
-                    if (this.open[id]) this.open[id] = row;
-                    if (row.status === 'FILLED' || row.status === 'CANCELED') delete this.open[id];
-                }
-            } else if (msg.type === 'trade') {
-                const tr: TradeRow = {
+                const row: LiveOrder = {
                     id: String(msg.id || ''),
-                    side: (msg.side || 'BUY').toUpperCase(),
+                    side: String(msg.side || 'BUY').toUpperCase() as any,
                     price: Number(msg.price || 0),
                     qty: Number(msg.qty || 0),
-                    pnl: Number(msg.pnl || 0),
+                    status: String(msg.evt || msg.status || 'NEW').toUpperCase(),
                     ts: Number(msg.ts || Date.now())
                 };
-                this.recent.unshift(tr);
-                if (this.recent.length > 200) this.recent.pop();
+                // кладём сверху
+                this.orders.unshift(row);
+                if (this.orders.length > this.maxKeep) this.orders.pop();
             }
         });
     }
 
-    get openList(): OrderRow[] { return Object.values(this.open).sort((a,b)=>b.ts-a.ts); }
+    trackId(_i: number, r: LiveOrder) { return r.id + ':' + r.ts; }
 }

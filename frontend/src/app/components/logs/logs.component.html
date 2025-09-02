@@ -1,12 +1,35 @@
-<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px">
-    <b>Logs</b>
-    <button mat-stroked-button (click)="clear()">Очистить</button>
-</div>
+<div class="logs">
+    <div class="bar">
+        <div class="title">Логи</div>
+        <span class="spacer"></span>
+        <button mat-icon-button (click)="clear()" matTooltip="Очистить">
+            <mat-icon>delete_sweep</mat-icon>
+        </button>
+    </div>
 
-<div class="log-wrap">
-    <div *ngFor="let it of items" class="log-row">
-        <span class="ts">{{ it.ts | date:'mediumTime' }}</span>
-        <span class="type" [class.diag]="it.type==='diag'">{{ it.type }}</span>
-        <span class="msg">{{ it.text }}</span>
+    <div class="pane" #pane>
+        <table class="tbl">
+            <thead>
+            <tr>
+                <th style="width:120px;">Время</th>
+                <th style="width:110px;">Тип</th>
+                <th>Сообщение</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr *ngFor="let r of rows">
+                <td class="mono">{{ r.ts | date:'mediumTime' }}</td>
+                <td class="mono type"
+                    [class.type-status]="r.type==='status'"
+                    [class.type-diag]="r.type==='diag'"
+                    [class.type-stats]="r.type==='stats'"
+                    [class.type-order]="r.type==='order_event'"
+                    [class.type-trade]="r.type==='trade'">
+                    {{ r.type }}
+                </td>
+                <td class="txt">{{ r.text }}</td>
+            </tr>
+            </tbody>
+        </table>
     </div>
 </div>

@@ -1,49 +1,69 @@
-import { Component, OnDestroy } from '@angular/core';
+import { Component, ElementRef, ViewChild, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AppMaterialModule } from '../../app.module';
 import { WsService } from '../../services/ws.service';
-import { Subscription } from 'rxjs';
 
-interface LogItem {
-  ts: number;
-  type: string;
-  text: string;
-  raw?: any;
+interface LogRow {
+    ts: number;
+    type: string;
+    text: string;
 }
 
 @Component({
-  selector: 'app-logs',
-  standalone: true,
-  imports: [CommonModule, AppMaterialModule],
-  templateUrl: './logs.component.html',
-  styleUrls: ['./logs.component.css']
+    selector: 'app-logs',
+    standalone: true,
+    imports: [CommonModule, AppMaterialModule],
+    templateUrl: './logs.component.html',
+    styleUrls: ['./logs.component.css']
 })
-export class LogsComponent implements OnDestroy {
-  items: LogItem[] = [];
-  private sub = new Subscription();
-  private maxItems = 500;
+export class LogsComponent {
+    @ViewChild('pane') pane?: ElementRef<HTMLDivElement>;
 
-  constructor(private ws: WsService) {
-    // ✅ Совместимость: теперь connect() публичный (или можно вообще не вызывать — сервис сам автоподключается)
-    this.ws.connect();
+    rows: LogRow[] = [];
+    maxRows = 2000;
 
-    this.sub.add(
-        // можно было бы использовать messages$, но stream$ оставлен для обратной совместимости
+    constructor(private ws: WsService, private zone: NgZone) {}
+
+    ngOnInit() {
+        this.ws.connect();
         this.ws.stream$.subscribe((evt: any) => {
-          const t = (evt && typeof evt === 'object' && evt.type) ? String(evt.type) : 'text';
-          const txt =
-              t === 'diag'
-                  ? String(evt.text ?? '')
-                  : typeof evt === 'string'
-                      ? evt
-                      : JSON.stringify(evt);
-          this.items.unshift({ ts: Date.now(), type: t, text: txt, raw: evt });
-          if (this.items.length > this.maxItems) this.items.pop();
-        })
-    );
-  }
+            this.zone.run(() => this.onEvent(evt));
+        });
+    }
 
-  ngOnDestroy(): void { this.sub.unsubscribe(); }
+    private onEvent(evt: any) {
+        const t = Date.now();
 
-  clear() { this.items = []; }
+        let type = 'msg';
+        let text = '';
+
+        if (!evt) { type = 'diag'; text = 'empty event'; }
+        else if (typeof evt === 'string') { type = 'diag'; text = evt; }
+        else if (evt.type) { type = String(evt.type); }
+
+        switch (type) {
+            case 'status':
+                text = `running=${evt.running} equity=${evt.equity ?? ''} symbol=${evt.symbol ?? ''}`;
+                break;
+            case 'diag':
+                text = String(evt.text ?? JSON.stringify(evt));
+                break;
+            case 'stats':
+                text = `ws_clients=${evt.ws_clients} ws_rate=${evt.ws_rate}`;
+                break;
+            case 'order_event':
+                text = `ORDER ${evt.evt || evt.status} ${evt.side} @ ${evt.price} x ${evt.qty}`;
+                break;
+            case 'trade':
+                text = `TRADE ${evt.side} @ ${evt.price} x ${evt.qty} pnl=${evt.pnl ?? ''}`;
+                break;
+            default:
+                text = text || JSON.stringify(evt);
+        }
+
+        this.rows.push({ ts: t, type, text });
+        if (this.rows.length > this.maxRows) this.rows.splice(0, this.rows.length - this.maxRows);
+    }
+
+    clear() { this.rows = []; }
 }

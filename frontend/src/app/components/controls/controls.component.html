@@ -1,7 +1,18 @@
-<h2>Управление</h2>
-<div style="display:flex; gap:8px; align-items:center">
-  <button mat-raised-button color="primary" (click)="start()" [disabled]="running">Старт</button>
-  <button mat-raised-button color="warn" (click)="stop()" [disabled]="!running">Стоп</button>
-  <button mat-stroked-button (click)="scan()">Сканировать</button>
-  <span class="badge" [style.background]="running?'#1b5e20':'#263238'">{{running?'RUNNING':'STOPPED'}}</span>
+<div class="controls">
+    <div class="left">
+        <button mat-raised-button color="primary"
+                (click)="doStart()" [disabled]="busy || running">
+            ▶︎ Старт
+        </button>
+        <button mat-stroked-button color="warn"
+                (click)="doStop()" [disabled]="busy || !running">
+            ■ Стоп
+        </button>
+        <button mat-button (click)="refresh()" [disabled]="busy">Обновить</button>
+    </div>
+
+    <div class="right">
+        <span class="dot" [class.on]="running" [class.off]="!running"></span>
+        <span class="lbl">{{ running ? 'Работает' : 'Остановлен' }}</span>
+    </div>
 </div>

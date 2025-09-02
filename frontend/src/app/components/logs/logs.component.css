@@ -1,18 +1,44 @@
-.log-wrap {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px;
-    line-height: 1.4;
-    max-height: 360px;
-    overflow: auto;
-    background: #0d0d0d;
-    color: #ddd;
-    padding: 8px;
-    border-radius: 8px;
-    border: 1px solid #222;
+/* контейнер занимает высоту карточки и не растягивает родителя */
+.logs { display:flex; flex-direction:column; height:100%; gap:8px; min-height:0; }
+
+/* шапка блока */
+.bar { display:flex; align-items:center; gap:8px; }
+.title { font-weight:700; }
+.spacer { flex:1 1 auto; }
+
+/* область со скроллом
+   ВАЖНО: min-height:0 — чтобы flex-элемент позволял внутреннему скроллу,
+   а не растягивал колонку */
+.pane {
+    flex:1 1 auto;
+    min-height: 0;
+    overflow:auto;
+    border:1px solid #1b1f24;
+    border-radius:10px;
+    background:#0f1216;
 }
-.log-row { display: grid; grid-template-columns: 84px 70px 1fr; gap: 8px; padding: 2px 0; }
-.ts { color: #9aa0a6; }
-.type { color: #a0cfff; text-transform: uppercase; }
-.type.diag { color: #ffd166; }
-.msg { white-space: pre-wrap; word-break: break-word; }
-/* logs style in global */
+
+/* таблица логов (мелкий шрифт) */
+.tbl { width:100%; border-collapse:collapse; table-layout: fixed; font-size: 11px; }
+.tbl thead th {
+    position: sticky; top: 0; z-index: 1;
+    background:#0f1216;
+    border-bottom:1px solid #242a31;
+    text-align:left; padding:6px 8px;
+}
+.tbl tbody td {
+    border-bottom:1px solid #1b1f24;
+    padding:6px 8px; vertical-align: top;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+/* перенос длинных сообщений */
+.txt { white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; color:#e6edf3; }
+
+/* раскраска типов */
+.type { font-weight:700; }
+.type-status { color:#8be9fd; }
+.type-diag   { color:#bd93f9; }
+.type-stats  { color:#f1fa8c; }
+.type-order  { color:#ffb86c; }
+.type-trade  { color:#50fa7b; }

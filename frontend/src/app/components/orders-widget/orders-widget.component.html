@@ -1,45 +1,27 @@
 <div class="wrap">
-    <div class="row">
-        <div class="title">Ордера (активные)</div>
-        <div class="muted">{{ openList.length }}</div>
+    <div class="head">
+        <h3>Ордера (live)</h3>
+        <div class="muted">поток без лимита (храню {{maxKeep}})</div>
     </div>
 
-    <table class="tbl">
-        <thead>
-        <tr><th>ID</th><th>Side</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th></tr>
-        </thead>
-        <tbody>
-        <tr *ngFor="let o of openList">
-            <td class="mono">{{ o.id }}</td>
-            <td [class.buy]="o.side==='BUY'" [class.sell]="o.side==='SELL'">{{ o.side }}</td>
-            <td class="mono">{{ o.price | number:'1.2-6' }}</td>
-            <td class="mono">{{ o.qty | number:'1.6-6' }}</td>
-            <td>{{ o.status }}</td>
-            <td class="mono">{{ o.ts | date:'mediumTime' }}</td>
-        </tr>
-        <tr *ngIf="openList.length===0"><td colspan="6" class="muted">нет активных</td></tr>
-        </tbody>
-    </table>
-
-    <div class="row" style="margin-top:10px">
-        <div class="title">Сделки (последние)</div>
-        <div class="muted">{{ recent.length }}</div>
+    <div class="scroll">
+        <table class="tbl">
+            <thead>
+            <tr><th>ID</th><th>Side</th><th>Price</th><th>Qty</th><th>Status</th><th>Time</th></tr>
+            </thead>
+            <tbody>
+            <tr *ngFor="let o of orders; trackBy: trackId">
+                <td class="mono">{{ o.id }}</td>
+                <td [class.buy]="o.side==='BUY'" [class.sell]="o.side==='SELL'">{{ o.side }}</td>
+                <td class="mono">{{ o.price | number:'1.2-6' }}</td>
+                <td class="mono">{{ o.qty | number:'1.6-6' }}</td>
+                <td>{{ o.status }}</td>
+                <td class="mono">{{ o.ts | date:'mediumTime' }}</td>
+            </tr>
+            <tr *ngIf="orders.length===0"><td colspan="6" class="muted">пока пусто</td></tr>
+            </tbody>
+        </table>
     </div>
-
-    <table class="tbl">
-        <thead>
-        <tr><th>ID</th><th>Side</th><th>Price</th><th>Qty</th><th>PNL</th><th>Time</th></tr>
-        </thead>
-        <tbody>
-        <tr *ngFor="let t of recent">
-            <td class="mono">{{ t.id }}</td>
-            <td [class.buy]="t.side==='BUY'" [class.sell]="t.side==='SELL'">{{ t.side }}</td>
-            <td class="mono">{{ t.price | number:'1.2-6' }}</td>
-            <td class="mono">{{ t.qty | number:'1.6-6' }}</td>
-            <td class="mono" [class.profit]="t.pnl>0" [class.loss]="t.pnl<0">{{ t.pnl | number:'1.2-2' }}</td>
-            <td class="mono">{{ t.ts | date:'mediumTime' }}</td>
-        </tr>
-        <tr *ngIf="recent.length===0"><td colspan="6" class="muted">нет сделок</td></tr>
-        </tbody>
-    </table>
 </div>
+
+
