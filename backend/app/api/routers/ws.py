@@ -3,13 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Any, Callable, Optional
-import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ...services.state import get_state
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 
 async def _safe_send(ws: WebSocket, msg: Any) -> None:
@@ -23,7 +21,7 @@ async def _safe_send(ws: WebSocket, msg: Any) -> None:
         try:
             await ws.send_text(json.dumps(msg, default=str, ensure_ascii=False))
         except Exception:
-            logger.exception("WebSocket send failed")
+            pass
 
 
 def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
@@ -47,12 +45,11 @@ def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
             try:
                 state.unregister_ws(q)  # type: ignore
             except Exception:
-                logger.exception("state.unregister_ws failed")
                 try:
                     if hasattr(state, "_clients") and isinstance(getattr(state, "_clients"), set):
                         getattr(state, "_clients").discard(q)
                 except Exception:
-                    logger.exception("Failed to remove websocket client from pool")
+                    pass
         return q, _unsub
 
     # Фолбэк на приватное множество
@@ -65,7 +62,7 @@ def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
             if isinstance(client_set, set):
                 client_set.discard(q)
         except Exception:
-            logger.exception("Failed to discard websocket client")
+            pass
     return q, _unsub
 
 
@@ -93,7 +90,7 @@ async def ws_stream(ws: WebSocket):
                 "symbol": symbol,
             })
         except Exception:
-            logger.exception("Failed to send initial status")
+            pass
 
         recv_task = asyncio.create_task(ws.receive_text())
         send_task = asyncio.create_task(q.get())
@@ -108,7 +105,7 @@ async def ws_stream(ws: WebSocket):
                 except WebSocketDisconnect:
                     break
                 except Exception:
-                    logger.exception("Error receiving from WebSocket")
+                    pass
                 finally:
                     recv_task = asyncio.create_task(ws.receive_text())
 
@@ -128,25 +125,23 @@ async def ws_stream(ws: WebSocket):
                 send_task = asyncio.create_task(q.get())
 
     except WebSocketDisconnect:
-        logger.info("WebSocket disconnected")
+        pass
     except asyncio.CancelledError:
-        logger.info("WebSocket connection cancelled")
+        pass
     finally:
         try:
-            if recv_task:
-                recv_task.cancel()
+            if recv_task: recv_task.cancel()
         except Exception:
-            logger.exception("Failed to cancel recv_task")
+            pass
         try:
-            if send_task:
-                send_task.cancel()
+            if send_task: send_task.cancel()
         except Exception:
-            logger.exception("Failed to cancel send_task")
+            pass
         try:
             unsub()
         except Exception:
-            logger.exception("Failed to unsubscribe websocket")
+            pass
         try:
             await ws.close()
         except Exception:
-            logger.exception("Failed to close websocket")
+            pass

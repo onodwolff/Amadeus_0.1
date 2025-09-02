@@ -110,7 +110,7 @@ async def _scan_impl(cfg: Dict[str, Any], client: AsyncClient) -> Dict[str, Any]
             if lp >= min_price and qv >= min_vol_usdt:
                 vols[s] = qv
         except Exception:
-            log.exception("Failed to process volume info for %s", s)
+            pass
 
     top_syms = [kv[0] for kv in sorted(vols.items(), key=lambda kv: kv[1], reverse=True)[:top_by_volume]]
     if not top_syms:
