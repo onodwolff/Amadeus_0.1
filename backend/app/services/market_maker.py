@@ -3,8 +3,11 @@ import asyncio
 import time
 import math
 import random
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, List
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -70,7 +73,6 @@ class MarketMaker:
         # границы точности (на глаз, чтобы без обмена exchangeInfo)
         self._qty_step = 1e-6
         self._price_step = 1e-2  # 0.01$ для USDT-пар по умолчанию
-
     # ----------------- публичный цикл -----------------
     async def run(self):
         self._log(f"MM start for {self.symbol} (shadow={getattr(self.client_wrap, 'shadow', False)})")
@@ -101,7 +103,7 @@ class MarketMaker:
             try:
                 self.events_cb(evt)
             except Exception:
-                pass
+                logger.exception("Fallback events_cb execution failed")
 
     # округление под шаги
     def _round_price(self, p: float) -> float:
@@ -136,11 +138,15 @@ class MarketMaker:
                     b = msg.get("b")
                     a = msg.get("a")
                     if b is not None:
-                        try: self.best_bid = float(b)
-                        except: pass
+                        try:
+                            self.best_bid = float(b)
+                        except Exception:
+                            logger.exception("Failed to parse best bid")
                     if a is not None:
-                        try: self.best_ask = float(a)
-                        except: pass
+                        try:
+                            self.best_ask = float(a)
+                        except Exception:
+                            logger.exception("Failed to parse best ask")
                     self.ticks_total += 1
                     # ретранслируем в UI (не обязательно, но полезно)
                     self._emit({"type": "market", "symbol": sym, "bestBid": self.best_bid, "bestAsk": self.best_ask, "ts": msg.get("E") or int(self._now()*1000)})
