@@ -1,13 +1,11 @@
 from __future__ import annotations
 import time
-import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
 from ...services.state import get_state
 
 router = APIRouter(prefix="/risk", tags=["risk"])
-logger = logging.getLogger(__name__)
 
 
 def _build_risk_manager() -> Any:
@@ -58,7 +56,7 @@ def _safe_dump_state(rm: Any) -> Dict[str, Any]:
                 return data
     except Exception:
         # если своя реализация что-то бросила — сваливаемся на ручную сборку
-        logger.exception("Risk manager dump_state failed")
+        pass
 
     now = time.time()
     locked_until = float(getattr(rm, "_locked_until", 0.0) or 0.0)
@@ -96,7 +94,7 @@ async def risk_unlock(rm: Any = Depends(_build_risk_manager)):
             return {"ok": True, "mode": "unlock_all()"}
         except Exception as e:
             # провалимся на ручной сброс
-            logger.exception("unlock_all() failed: %s", e)
+            pass
 
     # 2) ручной сброс
     unlocked = 0
@@ -117,7 +115,7 @@ async def risk_unlock(rm: Any = Depends(_build_risk_manager)):
                         getattr(g, "_pair_locked_until").clear()
                         unlocked += 1
                     except Exception:
-                        logger.exception("Failed to clear pair lock state")
+                        pass
             except Exception:
                 # не даём падать — продолжаем сбрасывать всё, что можно
                 continue
@@ -127,11 +125,11 @@ async def risk_unlock(rm: Any = Depends(_build_risk_manager)):
         try:
             setattr(rm, "_locked_until", 0.0)
         except Exception:
-            logger.exception("Failed to reset _locked_until on risk manager")
+            pass
     if hasattr(rm, "locked"):
         try:
             setattr(rm, "locked", False)
         except Exception:
-            logger.exception("Failed to reset locked flag on risk manager")
+            pass
 
     return {"ok": True, "unlocked": unlocked}

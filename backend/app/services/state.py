@@ -78,7 +78,7 @@ class AppState:
         try:
             self.broadcast_status()
         except Exception:
-            logger.exception("Failed to broadcast status after config update")
+            pass
 
     # --------------- Feature toggles ---------------
     @property
@@ -115,7 +115,7 @@ class AppState:
                 self._clients.discard(q)  # type: ignore
                 logger.info("WS disconnected (ext). total=%d", len(self._clients))
             except Exception:
-                logger.exception("Failed to disconnect websocket client")
+                pass
         return _unsub
 
     def _broadcast_obj(self, obj: Any) -> None:
@@ -250,7 +250,7 @@ class AppState:
             try:
                 await self._task
             except asyncio.CancelledError:
-                logger.info("Bot task cancelled")
+                pass
             finally:
                 self._task = None
 
@@ -259,7 +259,7 @@ class AppState:
             try:
                 await self._market_task
             except asyncio.CancelledError:
-                logger.info("Market task cancelled")
+                pass
             finally:
                 self._market_task = None
 
@@ -325,7 +325,7 @@ class AppState:
             if rest_cfg:
                 rest_base = rest_cfg
         except Exception:
-            logger.exception("Failed to parse shadow.rest_base")
+            pass
 
         self.broadcast("diag", text=f"MarketBridge start: {sym}")
 
@@ -427,7 +427,7 @@ class AppState:
                 if eq_val is not None:
                     self.on_equity(float(eq_val))
             except Exception:
-                logger.exception("Failed to handle equity value from event")
+                pass
 
             t = evt.get("type")
 
@@ -492,7 +492,7 @@ class AppState:
             try:
                 self.broadcast("diag", text="on_event: internal exception")
             except Exception:
-                logger.exception("Failed to broadcast on_event failure")
+                pass
 
     def status(self) -> BotStatus:
         m: Dict[str, Any] = {"ws_clients": len(self._clients)}
