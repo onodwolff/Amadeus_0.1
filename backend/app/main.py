@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.config import settings
 from .core.logging import setup_logging
 from .services.state import get_state
+from .deps import auth_dep
 
 # Базовое логирование
 setup_logging(to_console=True)
@@ -30,21 +31,23 @@ from .api.routers import config as cfg_router
 from .api.routers import bot
 from .api.routers import scanner
 
-app.include_router(cfg_router.router, prefix="/api")
-app.include_router(bot.router,        prefix="/api")
-app.include_router(scanner.router,    prefix="/api")
+api_deps = [Depends(auth_dep)]
+
+app.include_router(cfg_router.router, prefix="/api", dependencies=api_deps)
+app.include_router(bot.router,        prefix="/api", dependencies=api_deps)
+app.include_router(scanner.router,    prefix="/api", dependencies=api_deps)
 
 # Дополнительные роутеры: risk, history
 try:
     from .api.routers import risk
-    app.include_router(risk.router,   prefix="/api")
+    app.include_router(risk.router,   prefix="/api", dependencies=api_deps)
     log.info("Router /api/risk подключён")
 except Exception as e:
     log.warning("Router /api/risk недоступен: %s", e)
 
 try:
     from .api.routers import history
-    app.include_router(history.router, prefix="/api")
+    app.include_router(history.router, prefix="/api", dependencies=api_deps)
     log.info("Router /api/history подключён")
 except Exception as e:
     log.warning("Router /api/history недоступен: %s", e)

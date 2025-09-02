@@ -10,6 +10,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ## ENV
 See `.env.example`. Defaults to shadow/paper mode.
 
+### Authentication
+- Set `API_TOKEN` to the shared secret used by clients.
+- All `/api/*` endpoints expect `Authorization: Bearer <token>`.
+- The WebSocket `/ws` requires `?token=<token>` in the URL.
+
 ## Structure
 - `api/routers/*` — REST/WS routes
 - `services/*` — Binance wrapper, MarketMaker, PairScanner, ShadowExecutor
