@@ -1,11 +1,7 @@
+<!-- ======= TOP BAR ======= -->
 <header class="topbar">
     <div class="brand">{{ title }}</div>
     <div class="spacer"></div>
-
-    <!-- Переключатель графика TV/Lightweight -->
-    <button mat-icon-button aria-label="Chart mode" (click)="toggleChart()" matTooltip="Переключить график (TV/Lightweight)">
-        <mat-icon>candlestick_chart</mat-icon>
-    </button>
 
     <!-- История -->
     <button mat-icon-button aria-label="История" (click)="openHistory()" matTooltip="История / Live">
@@ -18,11 +14,12 @@
     </button>
 </header>
 
+<!-- ======= CONTROLS ======= -->
 <section class="section">
     <app-controls></app-controls>
 </section>
 
-<!-- РЯД 1: Дашборд + Ордера/Сделки -->
+<!-- ======= ROW 1: Dashboard + Orders ======= -->
 <section class="section">
     <div class="grid grid-2">
         <div class="card">
@@ -34,25 +31,51 @@
     </div>
 </section>
 
-<!-- РЯД 2: График и Логи — 50/50 и одинаковая высота -->
+<!-- ======= ROW 2: Chart + Logs (50/50) ======= -->
 <section class="section">
     <div class="row-tv-logs">
+        <!-- CHART CARD -->
         <div class="card">
-            <div class="fill" *ngIf="isTv()">
-                <app-tv-advanced></app-tv-advanced>
+            <div class="card-head">
+                <div class="card-title">График</div>
+                <div class="card-actions">
+                    <!-- Переключатель графика в правом углу шапки карточки -->
+                    <button mat-icon-button aria-label="Chart mode" (click)="toggleChart()"
+                            [matTooltip]="isTv() ? 'Переключить на Lightweight' : 'Переключить на TradingView'">
+                        <mat-icon>{{ isTv() ? 'candlestick_chart' : 'show_chart' }}</mat-icon>
+                    </button>
+                </div>
             </div>
-            <div class="fill" *ngIf="!isTv()">
-                <!-- если используешь lightweight — подставь свой компонент -->
-                <app-tv-advanced></app-tv-advanced>
+            <div class="fill">
+                <ng-container *ngIf="isTv(); else lwTpl">
+                    <app-tv-advanced></app-tv-advanced>
+                </ng-container>
+                <ng-template #lwTpl>
+                    <app-tv-lightweight></app-tv-lightweight>
+                </ng-template>
             </div>
         </div>
+
+        <!-- LOGS CARD -->
         <div class="card">
-            <app-logs></app-logs>
+            <div class="card-head">
+                <div class="card-title">Логи</div>
+                <div class="card-actions">
+                    <!-- Иконка очистки логов справа -->
+                    <button mat-icon-button aria-label="Очистить логи" matTooltip="Очистить"
+                            (click)="logsComp?.clear?.()">
+                        <mat-icon>delete_sweep</mat-icon>
+                    </button>
+                </div>
+            </div>
+            <div class="fill">
+                <app-logs #logsComp></app-logs>
+            </div>
         </div>
     </div>
 </section>
 
-<!-- Риск — отдельная секция, ниже графика -->
+<!-- ======= RISK (ниже графика) ======= -->
 <section class="section">
     <div class="card">
         <h3>Риск / Protections</h3>
@@ -64,11 +87,14 @@
             <button mat-stroked-button (click)="refreshRisk()">Обновить</button>
         </div>
         <ng-template #noRisk><div class="muted">Нет данных риска.</div></ng-template>
-        <div class="guards-wrap"><app-guards></app-guards></div>
+
+        <div class="guards-wrap">
+            <app-guards></app-guards>
+        </div>
     </div>
 </section>
 
-<!-- ===================== ОВЕРЛЕЙ: ИСТОРИЯ ===================== -->
+<!-- ======= OVERLAY: HISTORY ======= -->
 <div class="overlay" *ngIf="showHistory" (click)="closeOverlays()">
     <div class="panel panel-wide" (click)="$event.stopPropagation()">
         <div class="panel-head">
@@ -133,7 +159,9 @@
                 <div class="group-title-row">
                     <span>Orders (DB)</span><span class="muted">/ {{ dbOrders.length }}</span>
                     <span class="spacer"></span>
-                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">{{ dbLoading ? 'Загрузка...' : 'Обновить' }}</button>
+                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">
+                        {{ dbLoading ? 'Загрузка...' : 'Обновить' }}
+                    </button>
                 </div>
                 <div class="scroll">
                     <table class="tbl small">
@@ -161,7 +189,9 @@
                 <div class="group-title-row">
                     <span>Trades (DB)</span><span class="muted">/ {{ dbTrades.length }}</span>
                     <span class="spacer"></span>
-                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">{{ dbLoading ? 'Загрузка...' : 'Обновить' }}</button>
+                    <button mat-stroked-button (click)="loadDbHistory()" [disabled]="dbLoading">
+                        {{ dbLoading ? 'Загрузка...' : 'Обновить' }}
+                    </button>
                 </div>
                 <div class="scroll">
                     <table class="tbl small">
@@ -186,5 +216,19 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- ======= OVERLAY: CONFIG (Settings) ======= -->
+<div class="overlay" *ngIf="showConfig" (click)="closeOverlays()">
+    <div class="panel panel-wide" (click)="$event.stopPropagation()">
+        <div class="panel-head">
+            <div class="title">Настройки</div>
+            <span class="spacer"></span>
+            <button mat-icon-button (click)="closeOverlays()"><mat-icon>close</mat-icon></button>
+        </div>
+        <div class="panel-body">
+            <app-config></app-config>
+        </div>
     </div>
 </div>

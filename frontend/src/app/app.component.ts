@@ -1,9 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 // Материальные модули/общий модуль проекта
 import { AppMaterialModule } from './app.module';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 
 // Сервисы
 import { ApiService } from './services/api.service';
@@ -16,8 +19,10 @@ import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { LogsComponent } from './components/logs/logs.component';
 import { GuardsComponent } from './components/guards/guards.component';
 import { TvAdvancedComponent } from './components/tv-advanced/tv-advanced.component';
+import { TvLightweightComponent } from './components/tv-lightweight/tv-lightweight.component';
 import { HistoryComponent } from './components/history/history.component';
 import { OrdersWidgetComponent } from './components/orders-widget/orders-widget.component';
+import { ConfigComponent } from './components/config/config.component';
 
 type Theme = 'dark' | 'light';
 type ChartMode = 'tv' | 'lightweight' | 'none';
@@ -30,14 +35,18 @@ interface DbRow { event: string; symbol: string; side: string; type: string; pri
   selector: 'app-root',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, AppMaterialModule,
+    CommonModule, FormsModule,
+    // Материальные модули
+    AppMaterialModule, MatTooltipModule, MatButtonModule, MatIconModule,
+    // Наши компоненты
     ControlsComponent, DashboardComponent, LogsComponent, GuardsComponent,
-    TvAdvancedComponent, HistoryComponent, OrdersWidgetComponent
+    TvAdvancedComponent, TvLightweightComponent,
+    HistoryComponent, OrdersWidgetComponent, ConfigComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
-export class AppComponent {
+export class AppComponent implements OnInit, OnDestroy {
   title = 'Amadeus';
 
   // overlays
@@ -192,5 +201,5 @@ export class AppComponent {
 
   isTv() { return this.chartMode === 'tv'; }
   get liveOpenList(): LiveOrder[] { return Object.values(this.liveOpen).sort((a,b)=>b.ts-a.ts); }
-  trackId(_i: number, r: {id: string}) { return r.id; }
+  trackId(_i: number, r: LiveOrder) { return r.id; }
 }
