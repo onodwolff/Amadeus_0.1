@@ -5,6 +5,7 @@ import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Dict, Any, Optional, Tuple
+import logging
 
 @dataclass
 class ShadowConfig:
@@ -32,6 +33,8 @@ class ShadowExecutor:
         self._best: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
         self._lock = asyncio.Lock()
 
+logger = logging.getLogger(__name__)
+
     @staticmethod
     def _dec(x) -> Decimal:
         return Decimal(str(x))
@@ -55,7 +58,7 @@ class ShadowExecutor:
             best_ask = float(asks[0][0]) if asks else None
             self._best[symbol] = (best_bid, best_ask)
         except Exception:
-            pass
+            logger.exception("Failed to update best book for %s", symbol)
 
     async def on_trade(self, symbol: str, price: float, qty: float, is_buyer_maker: bool):
         if qty <= 0:
