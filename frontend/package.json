@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "start": "ng serve --open --port 4400 --host 0.0.0.0",
-    "build": "ng build"
+    "build": "ng build",
+    "lint": "eslint -c .eslintrc.json 'src/**/*.{ts,html}'",
+    "format": "prettier --write 'src/**/*.{ts,html,css}'"
   },
   "dependencies": {
     "@angular/animations": "^17.3.0",
@@ -25,6 +27,12 @@
     "@angular-devkit/build-angular": "^17.3.0",
     "@angular/cli": "^17.3.0",
     "@angular/compiler-cli": "^17.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
     "typescript": "~5.4.0"
   }
 }
