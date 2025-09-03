@@ -78,6 +78,10 @@ class MarketMakerStrategy(BaseStrategy):
 
         self._book_task: Optional[asyncio.Task] = None
 
+        # позиция
+        self.position: float = 0.0
+        self.avg_entry_price: float = 0.0
+
     # ----------------- жизненный цикл -----------------
     async def start(self) -> None:
         self._log(
@@ -260,6 +264,14 @@ class MarketMakerStrategy(BaseStrategy):
 
     # ----------------- бумажный брокер -----------------
     def _place(self, side: str, price: float, qty: float):
+        if side.upper() == "BUY":
+            state = getattr(self.client_wrap, "state", None)
+            if state is not None:
+                allowed, reason = state.check_risk(self.symbol)
+                if not allowed:
+                    self._log(f"buy blocked: {reason}")
+                    return
+
         oid = self._gen_id()
         now = self._now()
         po = PaperOrder(
@@ -339,5 +351,24 @@ class MarketMakerStrategy(BaseStrategy):
             "pnl": 0.0,
             "ts": int(ts * 1000)
         })
+
+        # обновление позиции для риск-менеджера
+        if po.side == "BUY":
+            total_cost = self.avg_entry_price * self.position + px * po.qty
+            self.position += po.qty
+            if self.position > 0:
+                self.avg_entry_price = total_cost / self.position
+        else:
+            self.position -= po.qty
+            if self.position <= 0:
+                self.position = 0.0
+                self.avg_entry_price = 0.0
+
+        state = getattr(self.client_wrap, "state", None)
+        if state and getattr(state, "risk_manager", None):
+            mark = self.best_ask if po.side == "BUY" else self.best_bid
+            if mark is None:
+                mark = px
+            state.risk_manager.on_position(self.position, mark, entry_price=self.avg_entry_price)
 
         self._log(f"filled {po.side} {po.qty} @ {px}")
