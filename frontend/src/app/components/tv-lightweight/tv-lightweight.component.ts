@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { createChart, ColorType } from 'lightweight-charts';
 import { ApiService } from '../../services/api.service';
 import { WsService } from '../../services/ws.service';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
     selector: 'app-tv-lightweight',
@@ -35,7 +36,7 @@ export class TvLightweightComponent implements OnInit, OnDestroy {
 
     private async loadConfig() {
         try {
-            const res: any = await this.api.getConfig().toPromise();
+            const res: any = await firstValueFrom(this.api.getConfig());
             const cfg = (res && res.cfg) || {};
             const rawSym: string = (cfg.strategy && cfg.strategy.symbol) || 'BNBUSDT';
             this.symbol = (rawSym || 'BNBUSDT').toUpperCase();
