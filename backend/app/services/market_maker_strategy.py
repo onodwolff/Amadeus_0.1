@@ -7,6 +7,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, List
 
+from .base_strategy import BaseStrategy
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ class PaperOrder:
     filled_qty: float = 0.0
 
 
-class MarketMaker:
+class MarketMakerStrategy(BaseStrategy):
     """
     Мини-скальпер для shadow-песочницы:
     - подписывается на bookTicker,
@@ -39,11 +41,9 @@ class MarketMaker:
     """
 
     def __init__(self, cfg: Dict[str, Any], client_wrapper: Any, events_cb):
-        self.cfg = cfg or {}
-        self.client_wrap = client_wrapper
-        self.events_cb = events_cb
+        super().__init__(cfg or {}, client_wrapper, events_cb)
 
-        strat = (self.cfg.get("strategy") or {})
+        strat = ((self.cfg.get("strategy") or {}).get("market_maker") or {})
         self.symbol: str = str(strat.get("symbol") or "BNBUSDT").upper()
         self.loop_sleep: float = float(strat.get("loop_sleep", 0.2))
 
@@ -75,13 +75,27 @@ class MarketMaker:
         # границы точности (на глаз, чтобы без обмена exchangeInfo)
         self._qty_step = 1e-6
         self._price_step = 1e-2  # 0.01$ для USDT-пар по умолчанию
-    # ----------------- публичный цикл -----------------
-    async def run(self):
-        self._log(f"MM start for {self.symbol} (shadow={getattr(self.client_wrap, 'shadow', False)})")
-        await asyncio.gather(
-            self._book_ticker_loop(),
-            self._mm_loop()
+
+        self._book_task: Optional[asyncio.Task] = None
+
+    # ----------------- жизненный цикл -----------------
+    async def start(self) -> None:
+        self._log(
+            f"MM start for {self.symbol} (shadow={getattr(self.client_wrap, 'shadow', False)})"
         )
+        self._book_task = asyncio.create_task(self._book_ticker_loop())
+
+    async def stop(self) -> None:
+        if self._book_task:
+            self._book_task.cancel()
+            try:
+                await self._book_task
+            except asyncio.CancelledError:
+                pass
+            self._book_task = None
+
+    async def step(self) -> None:
+        await self._step_once()
 
     # ----------------- утилиты -----------------
     def _now(self) -> float:
@@ -160,22 +174,12 @@ class MarketMaker:
             await asyncio.sleep(1.0)
             asyncio.create_task(self._book_ticker_loop())
 
-    # ----------------- основной цикл ММ -----------------
-    async def _mm_loop(self):
-        while True:
-            try:
-                await self._step_once()
-            except Exception as e:
-                self._log(f"step error: {e!s}")
-                await asyncio.sleep(0.3)
-            await asyncio.sleep(self.loop_sleep)
-
     async def _step_once(self):
         # нет котировок — нечего делать
         if self.best_bid is None or self.best_ask is None:
             return
 
-        strat = (self.cfg.get("strategy") or {})
+        strat = ((self.cfg.get("strategy") or {}).get("market_maker") or {})
         self.aggressive_take = bool(strat.get("aggressive_take", self.aggressive_take))
         self.aggressive_bps = float(strat.get("aggressive_bps", self.aggressive_bps))
         self.min_spread_pct = float(strat.get("min_spread_pct", self.min_spread_pct))

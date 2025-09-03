@@ -75,7 +75,7 @@ class StrategyEconConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class StrategyConfig(BaseModel):
+class MarketMakerStrategyConfig(BaseModel):
     symbol: str = "BNBUSDT"
     quote_size: float = 10.0
     target_pct: float = 0.5
@@ -98,6 +98,13 @@ class StrategyConfig(BaseModel):
     rest_bootstrap_interval: float = 3.0
     plan_log_interval: float = 5.0
     paper_cash: float = 1000
+    model_config = ConfigDict(extra="forbid")
+
+
+class StrategyConfig(BaseModel):
+    name: str = "market_maker"
+    market_maker: MarketMakerStrategyConfig = MarketMakerStrategyConfig()
+    trend_follow: Dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid")
 
 

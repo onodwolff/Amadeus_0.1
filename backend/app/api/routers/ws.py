@@ -102,7 +102,9 @@ async def ws_stream(ws: WebSocket):
         await _safe_send(ws, {"type": "hello", "version": "1.0"})
         try:
             cfg = getattr(state, "cfg", {}) or {}
-            symbol = (cfg.get("strategy") or {}).get("symbol")
+            strat = (cfg.get("strategy") or {})
+            name = strat.get("name")
+            symbol = (strat.get(name, {}) or {}).get("symbol")
             await _safe_send(ws, {
                 "type": "status",
                 "running": bool(state.is_running()) if hasattr(state, "is_running") else False,

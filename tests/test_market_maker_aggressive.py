@@ -1,6 +1,6 @@
 import asyncio
 import pytest
-from backend.app.services.market_maker import MarketMaker
+from backend.app.services.market_maker_strategy import MarketMakerStrategy
 
 
 class DummyClient:
@@ -11,15 +11,18 @@ def test_aggressive_take_places_taker_orders():
     events = []
     cfg = {
         "strategy": {
-            "symbol": "TESTUSDT",
-            "quote_size": 10.0,
-            "min_spread_pct": 1.0,
-            "reorder_interval": 0.0,
-            "aggressive_take": True,
-            "aggressive_bps": 1000.0,
+            "name": "market_maker",
+            "market_maker": {
+                "symbol": "TESTUSDT",
+                "quote_size": 10.0,
+                "min_spread_pct": 1.0,
+                "reorder_interval": 0.0,
+                "aggressive_take": True,
+                "aggressive_bps": 1000.0,
+            },
         }
     }
-    mm = MarketMaker(cfg, DummyClient(), lambda evt: events.append(evt))
+    mm = MarketMakerStrategy(cfg, DummyClient(), lambda evt: events.append(evt))
     mm.best_bid = 100.0
     mm.best_ask = 100.05
     asyncio.run(mm._step_once())
@@ -39,20 +42,23 @@ def test_aggressive_take_runtime_toggle():
     events = []
     cfg = {
         "strategy": {
-            "symbol": "TESTUSDT",
-            "quote_size": 10.0,
-            "min_spread_pct": 1.0,
-            "reorder_interval": 0.0,
-            "aggressive_take": True,
-            "aggressive_bps": 1000.0,
+            "name": "market_maker",
+            "market_maker": {
+                "symbol": "TESTUSDT",
+                "quote_size": 10.0,
+                "min_spread_pct": 1.0,
+                "reorder_interval": 0.0,
+                "aggressive_take": True,
+                "aggressive_bps": 1000.0,
+            },
         }
     }
-    mm = MarketMaker(cfg, DummyClient(), lambda evt: events.append(evt))
+    mm = MarketMakerStrategy(cfg, DummyClient(), lambda evt: events.append(evt))
     mm.best_bid = 100.0
     mm.best_ask = 100.05
     asyncio.run(mm._step_once())
     assert any(o.side == "BUY" and o.price == pytest.approx(mm.best_ask) and o.status == "NEW" for o in mm.orders.values())
-    mm.cfg["strategy"]["aggressive_take"] = False
+    mm.cfg["strategy"]["market_maker"]["aggressive_take"] = False
     mm._last_reorder_ts = 0.0
     asyncio.run(mm._step_once())
     new_orders = [o for o in mm.orders.values() if o.status == "NEW"]
