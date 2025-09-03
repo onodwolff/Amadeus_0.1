@@ -66,7 +66,7 @@ async def on_startup():
         log.exception("Failed to load configuration: %s", e)
         raise
 
-    state = get_state()
+    state = await get_state()
     state.cfg = settings.runtime_cfg or {}
     log.info(
         "Config синхронизирован: ui.chart=%s, api.paper=%s, api.shadow=%s, api.autostart=%s",
@@ -88,7 +88,7 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    state = get_state()
+    state = await get_state()
     try:
         if state.is_running():
             await state.stop_bot()

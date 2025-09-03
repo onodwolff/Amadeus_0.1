@@ -1,4 +1,5 @@
 import os
+import asyncio
 from fastapi.testclient import TestClient
 
 from backend.app.main import app
@@ -19,7 +20,7 @@ def test_load_yaml_on_startup(tmp_path):
 
     # After startup, config from file should be loaded
     assert settings.runtime_cfg["api"]["paper"] is False
-    state = get_state()
+    state = asyncio.run(get_state())
     assert state.cfg["api"]["paper"] is False
 
     # Cleanup
