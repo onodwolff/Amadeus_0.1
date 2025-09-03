@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Callable, List, Iterable
 import httpx  # async HTTP client
 import websockets  # websockets client
 from websockets.legacy.client import WebSocketClientProtocol  # type hints
+from .shadow_executor import ShadowExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -244,6 +245,13 @@ class BinanceAsync:
         self.events_cb = events_cb
         self.state = state
 
+        self.shadow_exec: Optional[ShadowExecutor] = None
+        if self.shadow:
+            try:
+                self.shadow_exec = ShadowExecutor(**self.shadow_opts)
+            except Exception:
+                logger.exception("Failed to init ShadowExecutor")
+
         # REST клиент
         self.client = BinanceRestClient(api_key=self.api_key, api_secret=self.api_secret, paper=self.paper)
         # WS менеджер, ожидаемый стратегией как .bm
@@ -291,15 +299,26 @@ class BinanceAsync:
             **kwargs: Any,
     ) -> Dict[str, Any]:
         self._pre_order(symbol)
-        order = {
-            "symbol": symbol,
-            "side": side.upper(),
-            "type": type_.upper(),
-            "qty": quantity,
-            "price": price,
-            "status": "NEW",
-        }
-        self._emit({"type": "order_event", "event": "NEW", "order": order})
+        if self.shadow_exec:
+            order = await self.shadow_exec.create_order(
+                symbol=symbol,
+                side=side.upper(),
+                type=type_.upper(),
+                quantity=quantity,
+                price=price,
+                **kwargs,
+            )
+        else:
+            order = {
+                "symbol": symbol,
+                "side": side.upper(),
+                "type": type_.upper(),
+                "qty": quantity,
+                "price": price,
+                "status": "NEW",
+            }
+        event = order.get("status", "NEW")
+        self._emit({"type": "order_event", "event": event, "order": order})
         return order
 
     # удобные врапперы — если используются
@@ -318,6 +337,25 @@ class BinanceAsync:
     async def create_market_sell(self, symbol: str, quantity: float, **kwargs) -> Dict[str, Any]:
         self._pre_order(symbol)
         return await self.create_order(symbol, "SELL", "MARKET", quantity=quantity, **kwargs)
+
+    async def cancel_order(self, symbol: str, orderId: Any) -> Dict[str, Any]:
+        if self.shadow_exec:
+            order = await self.shadow_exec.cancel_order(symbol=symbol, orderId=orderId)
+        else:
+            order = {"symbol": symbol, "orderId": orderId, "status": "CANCELED"}
+        event = order.get("status", "CANCELED")
+        self._emit({"type": "order_event", "event": event, "order": order})
+        return order
+
+    async def get_order(self, symbol: str, orderId: Any) -> Dict[str, Any]:
+        if self.shadow_exec:
+            order = await self.shadow_exec.get_order(symbol=symbol, orderId=orderId)
+        else:
+            order = {"symbol": symbol, "orderId": orderId, "status": "NEW"}
+        status = order.get("status")
+        if status in {"PARTIALLY_FILLED", "FILLED"}:
+            self._emit({"type": "order_event", "event": status, "order": order})
+        return order
 
     # совместимость: вдруг где-то вызывается client_wrap.get_symbol_info(...)
     async def get_symbol_info(self, symbol: str) -> Dict[str, Any]:

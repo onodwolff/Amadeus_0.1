@@ -7,6 +7,8 @@ from decimal import Decimal
 from typing import Dict, Any, Optional, Tuple
 import logging
 
+logger = logging.getLogger(__name__)
+
 @dataclass
 class ShadowConfig:
     alpha: float = 0.85
@@ -32,8 +34,6 @@ class ShadowExecutor:
         self._by_symbol: Dict[str, set[int]] = {}
         self._best: Dict[str, Tuple[Optional[float], Optional[float]]] = {}
         self._lock = asyncio.Lock()
-
-logger = logging.getLogger(__name__)
 
     @staticmethod
     def _dec(x) -> Decimal:
