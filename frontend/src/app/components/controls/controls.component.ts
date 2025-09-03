@@ -60,7 +60,13 @@ export class ControlsComponent implements OnDestroy {
       next: _ => {
         this.api.setRunning(false);
         this.running = false;
-        this.snack.open('Стоп', 'OK', { duration: 1200 });
+        // после остановки показываем финальную статистику
+        this.api.historyStats().subscribe(stats => {
+          this.api.historyTrades(10000, 0).subscribe(res => {
+            const pnl = (res.items || []).reduce((s, t) => s + (t.pnl || 0), 0);
+            this.snack.open(`Стоп. PnL: ${pnl.toFixed(2)}, Trades: ${stats.trades}`, 'OK', { duration: 4000 });
+          });
+        });
       },
       error: err => {
         this.snack.open(`Ошибка остановки: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 });

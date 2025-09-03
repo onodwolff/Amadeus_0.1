@@ -1,5 +1,16 @@
 .row { display:flex; gap:12px; align-items:center; flex-wrap: wrap; margin-bottom: 8px; }
 .two { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border-bottom: 1px solid #e0e0e0; padding: 6px; text-align: left; }
+table.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.tbl th, .tbl td {
+  border-bottom: 1px solid #e0e0e0;
+  padding: 6px;
+  text-align: left;
+}
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.pnl-positive { color:#2ecc71; font-weight:700; }
+.pnl-negative { color:#ff7675; font-weight:700; }
 @media (max-width: 1100px){ .two { grid-template-columns: 1fr; } }
