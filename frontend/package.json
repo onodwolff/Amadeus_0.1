@@ -5,7 +5,7 @@
   "scripts": {
     "start": "ng serve --open --port 4400 --host 0.0.0.0",
     "build": "ng build",
-    "lint": "eslint -c .eslintrc.json 'src/**/*.{ts,html}'",
+    "lint": "eslint .",
     "format": "prettier --write 'src/**/*.{ts,html,css}'"
   },
   "dependencies": {
