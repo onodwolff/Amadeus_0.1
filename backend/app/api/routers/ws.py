@@ -92,7 +92,7 @@ async def ws_stream(ws: WebSocket):
         return
 
     await ws.accept()
-    state = get_state()
+    state = await get_state()
 
     q, unsub = _subscribe(state)
 

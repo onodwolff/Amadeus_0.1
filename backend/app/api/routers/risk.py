@@ -10,12 +10,12 @@ router = APIRouter(prefix="/risk", tags=["risk"])
 logger = logging.getLogger(__name__)
 
 
-def _build_risk_manager() -> Any:
+async def _build_risk_manager() -> Any:
     """
     Возвращаем/создаём экземпляр RiskManager в глобальном стейте.
     Не предполагаем точную сигнатуру конструктора — пробуем безопасно.
     """
-    state = get_state()
+    state = await get_state()
     if getattr(state, "risk_manager", None) is not None:
         return state.risk_manager
 

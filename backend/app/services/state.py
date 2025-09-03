@@ -504,12 +504,16 @@ class AppState:
 
 
 # --- синглтон ---
+_state_lock = asyncio.Lock()
 _state: Optional[AppState] = None
 
-def get_state() -> AppState:
+
+async def get_state() -> AppState:
     global _state
     if _state is None:
-        _state = AppState()
+        async with _state_lock:
+            if _state is None:
+                _state = AppState()
     return _state
 
 __all__ = ["AppState", "get_state"]

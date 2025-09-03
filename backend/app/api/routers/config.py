@@ -52,7 +52,7 @@ async def put_config(request: Request):
 
     # сохраняем в settings и state
     settings.runtime_cfg = new_cfg
-    state = get_state()
+    state = await get_state()
     state.cfg = new_cfg
 
     return {"ok": True, "cfg": new_cfg}
@@ -87,6 +87,6 @@ async def restore_config():
     # пример, если решишь считать YAML/JSON с диска:
     # settings.load_yaml()
     # cfg = settings.runtime_cfg or {}
-    state = get_state()
+    state = await get_state()
     state.cfg = cfg
     return {"ok": True, "cfg": cfg}

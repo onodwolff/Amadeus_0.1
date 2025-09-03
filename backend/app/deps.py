@@ -5,8 +5,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .services.state import AppState, get_state
 from .core.config import settings
 
-def state_dep() -> AppState:
-    return get_state()
+
+async def state_dep() -> AppState:
+    return await get_state()
 
 security = HTTPBearer(auto_error=False)
 
