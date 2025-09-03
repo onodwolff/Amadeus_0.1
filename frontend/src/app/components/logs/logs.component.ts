@@ -20,7 +20,7 @@ export class LogsComponent {
     @ViewChild('pane') pane?: ElementRef<HTMLDivElement>;
 
     rows: LogRow[] = [];
-    maxRows = 2000;
+    maxRows = 100;
 
     constructor(private ws: WsService, private zone: NgZone) {}
 
