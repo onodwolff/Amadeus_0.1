@@ -166,10 +166,20 @@ class AppSettings(BaseSettings):
                     "symbol" in strat_section or "quote_size" in strat_section
                 ) and "market_maker" not in strat_section:
                     name = strat_section.pop("name", "market_maker")
-                    data["strategy"] = {
+                    strat_section = {
                         "name": name,
                         "market_maker": strat_section,
                     }
+                    data["strategy"] = strat_section
+
+                mm_cfg = strat_section.get("market_maker")
+                if isinstance(mm_cfg, dict):
+                    if "target_pct" in mm_cfg:
+                        mm_cfg.setdefault("inventory_target", mm_cfg.pop("target_pct"))
+                    if "target_range" in mm_cfg:
+                        mm_cfg.setdefault(
+                            "inventory_tolerance", mm_cfg.pop("target_range")
+                        )
 
             try:
                 cfg = RuntimeConfig.model_validate(data)

@@ -123,6 +123,30 @@ def test_defaults_when_sections_missing(tmp_path):
     assert s.runtime_cfg["strategy"]["market_maker"]["post_only"] is True
 
 
+def test_legacy_inventory_fields(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        yaml.safe_dump(
+            {
+                "strategy": {
+                    "market_maker": {
+                        "target_pct": 0.25,
+                        "target_range": 0.1,
+                    }
+                }
+            }
+        )
+    )
+
+    s = AppSettings(app_config_file=str(cfg_file))
+    s.load_yaml()
+
+    mm = s.runtime_cfg["strategy"]["market_maker"]
+    assert mm["inventory_target"] == 0.25
+    assert mm["inventory_tolerance"] == 0.1
+    assert "target_pct" not in mm and "target_range" not in mm
+
+
 def test_dump_and_load_round_trip(tmp_path):
     cfg_data = {
         "api": {"paper": False, "autostart": True, "shadow": True},
