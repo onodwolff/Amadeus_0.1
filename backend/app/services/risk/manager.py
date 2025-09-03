@@ -2,7 +2,7 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Dict, Optional, Tuple, Any
+from typing import Any, Deque, Dict, Optional, Tuple
 
 
 @dataclass
@@ -43,13 +43,26 @@ class RiskManager:
         # минимум сделок, после которых MDD имеет смысл применять (опционально)
         self.min_trades_for_dd: int = int(risk.get("min_trades_for_dd", 0))
 
+        # дополнительные лимиты
+        self.max_base_ratio: float = float(risk.get("max_base_ratio", 0))
+        self.max_loss_pct: float = float(risk.get("max_loss_pct", 0))
+        self.max_loss_usd: float = float(risk.get("max_loss_usd", 0))
+
         # ---- состояние ----
         self._eq: Deque[Tuple[float, float]] = deque()  # (ts_sec, equity)
         self._stop_until_ts: Optional[float] = None
         self._cooldown_until_ts: Optional[float] = None
         self._closed_trades: int = 0
 
-        # кэшируем значения
+        # позиция
+        self._position_qty: float = 0.0
+        self._position_entry_price: float = 0.0
+        self._position_price: float = 0.0
+        self._position_value_usd: float = 0.0
+        self._unrealized_loss_usd: float = 0.0
+
+        # прочее
+        self._current_equity: float = 0.0
         self._dd_current_pct: float = 0.0
         self._dd_max_window_pct: float = 0.0
 
@@ -59,9 +72,11 @@ class RiskManager:
         if not self.enabled:
             return
         now = float(ts if ts is not None else time.time())
-        self._eq.append((now, float(equity_value)))
+        eq = float(equity_value)
+        self._eq.append((now, eq))
         self._trim_old(now)
         self._recalc_dd()
+        self._current_equity = eq
 
         # Триггер блокировки по MDD
         if self._can_trigger_mdd_lock():
@@ -76,6 +91,30 @@ class RiskManager:
         self._closed_trades += 1
         if self.cooldown_sec > 0:
             self._cooldown_until_ts = now + self.cooldown_sec
+
+    def on_position(
+        self,
+        base_qty: float,
+        price: float,
+        entry_price: Optional[float] = None,
+        ts: Optional[float] = None,
+    ) -> None:
+        """Прокидывать текущую позицию и цену для расчёта лимитов."""
+        if not self.enabled:
+            return
+
+        self._position_qty = float(base_qty)
+        self._position_price = float(price)
+        if entry_price is not None:
+            self._position_entry_price = float(entry_price)
+
+        self._position_value_usd = abs(self._position_qty) * self._position_price
+
+        if self._position_entry_price and self._position_qty:
+            cost = abs(self._position_qty) * self._position_entry_price
+            self._unrealized_loss_usd = max(0.0, cost - self._position_value_usd)
+        else:
+            self._unrealized_loss_usd = 0.0
 
     def can_enter(self, pair: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """Разрешено ли входить в новую позицию сейчас."""
@@ -96,6 +135,27 @@ class RiskManager:
         # если окно пустое — не блокируем
         if not self._eq:
             return True, None
+
+        # ограничение по доле базового актива
+        if self.max_base_ratio > 0 and self._current_equity > 0 and self._position_value_usd > 0:
+            ratio = self._position_value_usd / self._current_equity
+            if ratio >= self.max_base_ratio:
+                return False, f"Base ratio {ratio:.2f} >= {self.max_base_ratio:.2f}"
+
+        # ограничения по убытку
+        if self.max_loss_usd > 0 and self._unrealized_loss_usd >= self.max_loss_usd:
+            return False, f"Loss {self._unrealized_loss_usd:.2f} >= {self.max_loss_usd:.2f} USD"
+
+        if (
+            self.max_loss_pct > 0
+            and self._position_entry_price > 0
+            and abs(self._position_qty) > 0
+        ):
+            cost = abs(self._position_qty) * self._position_entry_price
+            if cost > 0:
+                loss_pct = 100.0 * self._unrealized_loss_usd / cost
+                if loss_pct >= self.max_loss_pct:
+                    return False, f"Loss {loss_pct:.2f}% >= {self.max_loss_pct:.2f}%"
 
         # если MDD уже превышен — можно инициировать блокировку (будет поставлена on_equity)
         if self._can_trigger_mdd_lock():

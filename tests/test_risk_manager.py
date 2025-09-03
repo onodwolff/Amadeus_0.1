@@ -27,3 +27,21 @@ def test_trade_cooldown(monkeypatch):
     monkeypatch.setattr(time, "time", lambda: base + 11)
     allowed, _ = rm.can_enter()
     assert allowed
+
+
+def test_max_base_ratio_blocks_buy():
+    cfg = {"risk": {"max_base_ratio": 0.5}}
+    rm = RiskManager(cfg)
+    rm.on_equity(100.0)
+    rm.on_position(base_qty=1.0, price=60.0, entry_price=60.0)
+    allowed, reason = rm.can_enter()
+    assert not allowed and "Base ratio" in (reason or "")
+
+
+def test_max_loss_limits():
+    cfg = {"risk": {"max_loss_pct": 10, "max_loss_usd": 5}}
+    rm = RiskManager(cfg)
+    rm.on_equity(100.0)
+    rm.on_position(base_qty=1.0, price=90.0, entry_price=100.0)
+    allowed, reason = rm.can_enter()
+    assert not allowed and "Loss" in (reason or "")
