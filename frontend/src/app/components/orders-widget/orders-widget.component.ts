@@ -20,9 +20,8 @@ interface LiveOrder {
     styleUrls: ['./orders-widget.component.scss']
 })
 export class OrdersWidgetComponent {
-    // полный поток без лимита (с удержанием разумного окна)
     orders: LiveOrder[] = [];
-    maxKeep = 500;
+    maxKeep = 100;
 
     constructor(private ws: WsService) {}
 

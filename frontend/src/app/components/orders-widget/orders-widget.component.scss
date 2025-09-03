@@ -5,6 +5,12 @@
   font-size: 12px;
   table-layout: fixed;
 }
+.tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #0f1216;
+}
 .tbl th, .tbl td {
   border-bottom:1px solid #222;
   padding:4px 6px;
