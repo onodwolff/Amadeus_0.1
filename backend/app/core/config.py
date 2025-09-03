@@ -130,7 +130,7 @@ class AppSettings(BaseSettings):
     app_reload: bool = Field(False, alias="APP_RELOAD")
     app_origins: str = Field("*", alias="APP_ORIGINS")
 
-    api_token: str = Field("secret-token", alias="API_TOKEN")
+    api_token: str = Field("b1a7528e92de0ce1e456b7afad435b47ce870dcb41688de2af9e815a5a65372c", alias="API_TOKEN")
 
     binance_api_key: Optional[str] = Field(None, alias="BINANCE_API_KEY")
     binance_api_secret: Optional[str] = Field(None, alias="BINANCE_API_SECRET")

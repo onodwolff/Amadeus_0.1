@@ -24,7 +24,7 @@ export class ApiService {
   private readonly win = window as unknown as { __API__?: string; __TOKEN__?: string };
   private readonly baseRoot: string = (this.win.__API__ || environment.apiBaseUrl || 'http://127.0.0.1:8100').replace(/\/$/, '');
   readonly api: string = this.baseRoot + '/api';
-  private readonly _token: string = this.win.__TOKEN__ || 'secret-token';
+  private readonly _token: string = this.win.__TOKEN__ || 'b1a7528e92de0ce1e456b7afad435b47ce870dcb41688de2af9e815a5a65372c';
 
   private auth() { return { headers: { 'Authorization': `Bearer ${this._token}` } }; }
   get token(): string { return this._token; }
