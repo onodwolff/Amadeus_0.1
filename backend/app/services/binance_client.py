@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 from typing import Any, Dict, Optional, Callable, List, Iterable
+import time
 
 import httpx  # async HTTP client
 import websockets  # websockets client
@@ -278,6 +279,23 @@ class BinanceAsync:
         except Exception:
             logger.exception("events_cb failed")
 
+    def _emit_order_event(self, order: Dict[str, Any], event: str):
+        try:
+            msg = {
+                "type": "order_event",
+                "evt": event,
+                "id": order.get("orderId"),
+                "symbol": order.get("symbol"),
+                "side": order.get("side"),
+                "price": order.get("price"),
+                "qty": order.get("origQty") or order.get("qty"),
+                "status": order.get("status"),
+                "ts": order.get("updateTime") or order.get("transactTime") or int(time.time() * 1000),
+            }
+            self._emit(msg)
+        except Exception:
+            logger.exception("emit order_event failed")
+
     # -------------------- risk pre-check --------------------
     def _pre_order(self, symbol: Optional[str]):
         if not self.state:
@@ -318,7 +336,7 @@ class BinanceAsync:
                 "status": "NEW",
             }
         event = order.get("status", "NEW")
-        self._emit({"type": "order_event", "event": event, "order": order})
+        self._emit_order_event(order, event)
         return order
 
     # удобные врапперы — если используются
@@ -344,7 +362,7 @@ class BinanceAsync:
         else:
             order = {"symbol": symbol, "orderId": orderId, "status": "CANCELED"}
         event = order.get("status", "CANCELED")
-        self._emit({"type": "order_event", "event": event, "order": order})
+        self._emit_order_event(order, event)
         return order
 
     async def get_order(self, symbol: str, orderId: Any) -> Dict[str, Any]:
@@ -354,7 +372,7 @@ class BinanceAsync:
             order = {"symbol": symbol, "orderId": orderId, "status": "NEW"}
         status = order.get("status")
         if status in {"PARTIALLY_FILLED", "FILLED"}:
-            self._emit({"type": "order_event", "event": status, "order": order})
+            self._emit_order_event(order, status)
         return order
 
     # совместимость: вдруг где-то вызывается client_wrap.get_symbol_info(...)

@@ -31,13 +31,14 @@ export class OrdersWidgetComponent {
         this.ws.messages$.subscribe((msg: any) => {
             if (!msg || typeof msg !== 'object') return;
             if (msg.type === 'order_event') {
+                const o = msg.order || {};
                 const row: LiveOrder = {
-                    id: String(msg.id || ''),
-                    side: String(msg.side || 'BUY').toUpperCase() as any,
-                    price: Number(msg.price || 0),
-                    qty: Number(msg.qty || 0),
-                    status: String(msg.evt || msg.status || 'NEW').toUpperCase(),
-                    ts: Number(msg.ts || Date.now())
+                    id: String(msg.id || o.orderId || ''),
+                    side: String(msg.side || o.side || 'BUY').toUpperCase() as any,
+                    price: Number(msg.price || o.price || 0),
+                    qty: Number(msg.qty || o.qty || o.origQty || o.quantity || 0),
+                    status: String(msg.evt || msg.status || msg.event || o.status || 'NEW').toUpperCase(),
+                    ts: Number(msg.ts || msg.time || msg.T || o.updateTime || o.transactTime || Date.now())
                 };
                 // кладём сверху
                 this.orders.unshift(row);
