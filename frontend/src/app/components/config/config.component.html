@@ -7,8 +7,8 @@
     <button mat-stroked-button (click)="clearLocal()">Очистить localStorage</button>
   </div>
 
-  <div *ngIf="loading" class="muted" style="margin-top:8px">Загрузка…</div>
-  <div *ngIf="err" class="err" style="margin-top:8px">{{ err }}</div>
+  <div *ngIf="loading" class="muted" style="margin-top: 8px">Загрузка…</div>
+  <div *ngIf="err" class="err" style="margin-top: 8px">{{ err }}</div>
 
   <form [formGroup]="cfgForm">
     <mat-accordion>
@@ -21,9 +21,17 @@
           <mat-card>
             <mat-card-title>API</mat-card-title>
             <mat-card-content>
-              <mat-slide-toggle formControlName="paper" [matTooltip]="tips.paper">Paper</mat-slide-toggle>
-              <mat-slide-toggle formControlName="shadow" [matTooltip]="tips.shadow">Shadow</mat-slide-toggle>
-              <mat-slide-toggle formControlName="autostart" [matTooltip]="tips.autostart">Autostart</mat-slide-toggle>
+              <mat-slide-toggle formControlName="paper" [matTooltip]="tips.paper"
+                >Paper</mat-slide-toggle
+              >
+              <mat-slide-toggle formControlName="shadow" [matTooltip]="tips.shadow"
+                >Shadow</mat-slide-toggle
+              >
+              <mat-slide-toggle
+                formControlName="autostart"
+                [matTooltip]="tips.autostart"
+                >Autostart</mat-slide-toggle
+              >
             </mat-card-content>
           </mat-card>
         </div>
@@ -32,23 +40,50 @@
           <mat-card>
             <mat-card-title>Shadow</mat-card-title>
             <mat-card-content>
-              <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+              <mat-slide-toggle
+                formControlName="enabled"
+                [matTooltip]="tips.shadow_enabled"
+                >Enabled</mat-slide-toggle
+              >
               <mat-form-field>
                 <mat-label>Alpha</mat-label>
-                <input matInput type="number" formControlName="alpha" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="alpha"
+                  [matTooltip]="tips.shadow_alpha"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Latency ms</mat-label>
-                <input matInput type="number" formControlName="latency_ms" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="latency_ms"
+                  [matTooltip]="tips.shadow_latency_ms"
+                />
               </mat-form-field>
-              <mat-slide-toggle formControlName="post_only_reject">Post only reject</mat-slide-toggle>
+              <mat-slide-toggle
+                formControlName="post_only_reject"
+                [matTooltip]="tips.shadow_post_only_reject"
+                >Post only reject</mat-slide-toggle
+              >
               <mat-form-field>
                 <mat-label>Market slippage bps</mat-label>
-                <input matInput type="number" formControlName="market_slippage_bps" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="market_slippage_bps"
+                  [matTooltip]="tips.shadow_market_slippage_bps"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>REST base</mat-label>
-                <input matInput formControlName="rest_base" [matTooltip]="tips.rest_base" />
+                <input
+                  matInput
+                  formControlName="rest_base"
+                  [matTooltip]="tips.rest_base"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>WS base</mat-label>
@@ -73,8 +108,12 @@
                 <input matInput formControlName="chart" [matTooltip]="tips.chart" />
               </mat-form-field>
               <mat-radio-group formControlName="theme">
-                <mat-radio-button value="light" [matTooltip]="tips.theme_light">Light</mat-radio-button>
-                <mat-radio-button value="dark" [matTooltip]="tips.theme_dark">Dark</mat-radio-button>
+                <mat-radio-button value="light" [matTooltip]="tips.theme_light"
+                  >Light</mat-radio-button
+                >
+                <mat-radio-button value="dark" [matTooltip]="tips.theme_dark"
+                  >Dark</mat-radio-button
+                >
               </mat-radio-group>
             </mat-card-content>
           </mat-card>
@@ -84,8 +123,16 @@
           <mat-card>
             <mat-card-title>Features</mat-card-title>
             <mat-card-content>
-              <mat-slide-toggle formControlName="risk_protections">Risk protections</mat-slide-toggle>
-              <mat-slide-toggle formControlName="market_widget_feed">Market widget feed</mat-slide-toggle>
+              <mat-slide-toggle
+                formControlName="risk_protections"
+                [matTooltip]="tips.features_risk_protections"
+                >Risk protections</mat-slide-toggle
+              >
+              <mat-slide-toggle
+                formControlName="market_widget_feed"
+                [matTooltip]="tips.features_market_widget_feed"
+                >Market widget feed</mat-slide-toggle
+              >
             </mat-card-content>
           </mat-card>
         </div>
@@ -102,23 +149,48 @@
             <mat-card-content>
               <mat-form-field>
                 <mat-label>Max drawdown %</mat-label>
-                <input matInput type="number" formControlName="max_drawdown_pct" [matTooltip]="tips.max_drawdown_pct" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="max_drawdown_pct"
+                  [matTooltip]="tips.max_drawdown_pct"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>DD window sec</mat-label>
-                <input matInput type="number" formControlName="dd_window_sec" [matTooltip]="tips.dd_window_sec" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="dd_window_sec"
+                  [matTooltip]="tips.dd_window_sec"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Stop duration sec</mat-label>
-                <input matInput type="number" formControlName="stop_duration_sec" [matTooltip]="tips.stop_duration_sec" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="stop_duration_sec"
+                  [matTooltip]="tips.stop_duration_sec"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Cooldown sec</mat-label>
-                <input matInput type="number" formControlName="cooldown_sec" [matTooltip]="tips.cooldown_sec" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="cooldown_sec"
+                  [matTooltip]="tips.cooldown_sec"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Min trades for DD</mat-label>
-                <input matInput type="number" formControlName="min_trades_for_dd" [matTooltip]="tips.min_trades_for_dd" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="min_trades_for_dd"
+                  [matTooltip]="tips.min_trades_for_dd"
+                />
               </mat-form-field>
             </mat-card-content>
           </mat-card>
@@ -130,11 +202,20 @@
             <mat-card-content>
               <mat-form-field>
                 <mat-label>DB path</mat-label>
-                <input matInput formControlName="db_path" />
+                <input
+                  matInput
+                  formControlName="db_path"
+                  [matTooltip]="tips.history_db_path"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Retention days</mat-label>
-                <input matInput type="number" formControlName="retention_days" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="retention_days"
+                  [matTooltip]="tips.history_retention_days"
+                />
               </mat-form-field>
             </mat-card-content>
           </mat-card>
@@ -150,52 +231,108 @@
           <mat-card>
             <mat-card-title>Scanner</mat-card-title>
             <mat-card-content>
-              <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+              <mat-slide-toggle
+                formControlName="enabled"
+                [matTooltip]="tips.scanner_enabled"
+                >Enabled</mat-slide-toggle
+              >
               <mat-form-field>
                 <mat-label>Quote</mat-label>
-                <input matInput formControlName="quote" />
+                <input
+                  matInput
+                  formControlName="quote"
+                  [matTooltip]="tips.scanner_quote"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Min price</mat-label>
-                <input matInput type="number" formControlName="min_price" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="min_price"
+                  [matTooltip]="tips.scanner_min_price"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Min vol USDT 24h</mat-label>
-                <input matInput type="number" formControlName="min_vol_usdt_24h" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="min_vol_usdt_24h"
+                  [matTooltip]="tips.scanner_min_vol_usdt_24h"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Top by volume</mat-label>
-                <input matInput type="number" formControlName="top_by_volume" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="top_by_volume"
+                  [matTooltip]="tips.scanner_top_by_volume"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Max pairs</mat-label>
-                <input matInput type="number" formControlName="max_pairs" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="max_pairs"
+                  [matTooltip]="tips.scanner_max_pairs"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Min spread bps</mat-label>
-                <input matInput type="number" formControlName="min_spread_bps" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="min_spread_bps"
+                  [matTooltip]="tips.scanner_min_spread_bps"
+                />
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Vol bars</mat-label>
-                <input matInput type="number" formControlName="vol_bars" />
+                <input
+                  matInput
+                  type="number"
+                  formControlName="vol_bars"
+                  [matTooltip]="tips.scanner_vol_bars"
+                />
               </mat-form-field>
               <div formGroupName="score">
                 <mat-form-field>
                   <mat-label>w_spread</mat-label>
-                  <input matInput type="number" formControlName="w_spread" />
+                  <input
+                    matInput
+                    type="number"
+                    formControlName="w_spread"
+                    [matTooltip]="tips.scanner_w_spread"
+                  />
                 </mat-form-field>
                 <mat-form-field>
                   <mat-label>w_vol</mat-label>
-                  <input matInput type="number" formControlName="w_vol" />
+                  <input
+                    matInput
+                    type="number"
+                    formControlName="w_vol"
+                    [matTooltip]="tips.scanner_w_vol"
+                  />
                 </mat-form-field>
               </div>
               <mat-form-field>
                 <mat-label>Whitelist (comma separated)</mat-label>
-                <textarea matInput formControlName="whitelist"></textarea>
+                <textarea
+                  matInput
+                  formControlName="whitelist"
+                  [matTooltip]="tips.scanner_whitelist"
+                ></textarea>
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Blacklist (comma separated)</mat-label>
-                <textarea matInput formControlName="blacklist"></textarea>
+                <textarea
+                  matInput
+                  formControlName="blacklist"
+                  [matTooltip]="tips.scanner_blacklist"
+                ></textarea>
               </mat-form-field>
             </mat-card-content>
           </mat-card>
@@ -207,7 +344,11 @@
             <mat-card-content>
               <mat-form-field>
                 <mat-label>Name</mat-label>
-                <input matInput formControlName="name" />
+                <input
+                  matInput
+                  formControlName="name"
+                  [matTooltip]="tips.strategy_name"
+                />
               </mat-form-field>
               <div formGroupName="market_maker">
                 <mat-form-field>
@@ -216,15 +357,40 @@
                 </mat-form-field>
                 <mat-form-field>
                   <mat-label>Quote size</mat-label>
-                  <input matInput type="number" formControlName="quote_size" />
+                  <input
+                    matInput
+                    type="number"
+                    formControlName="quote_size"
+                    [matTooltip]="tips.mm_quote_size"
+                  />
                 </mat-form-field>
-                <mat-slider formControlName="capital_usage" min="0" max="1" step="0.1" thumbLabel [matTooltip]="tips.capital_usage"></mat-slider>
+                <mat-slider
+                  formControlName="capital_usage"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  thumbLabel
+                  [matTooltip]="tips.capital_usage"
+                ></mat-slider>
                 <mat-form-field>
                   <mat-label>Min spread %</mat-label>
-                  <input matInput type="number" formControlName="min_spread_pct" />
+                  <input
+                    matInput
+                    type="number"
+                    formControlName="min_spread_pct"
+                    [matTooltip]="tips.mm_min_spread_pct"
+                  />
                 </mat-form-field>
-                <mat-slide-toggle formControlName="post_only">Post only</mat-slide-toggle>
-                <mat-slide-toggle formControlName="aggressive_take" [matTooltip]="tips.aggressive_take">Aggressive take</mat-slide-toggle>
+                <mat-slide-toggle
+                  formControlName="post_only"
+                  [matTooltip]="tips.mm_post_only"
+                  >Post only</mat-slide-toggle
+                >
+                <mat-slide-toggle
+                  formControlName="aggressive_take"
+                  [matTooltip]="tips.aggressive_take"
+                  >Aggressive take</mat-slide-toggle
+                >
               </div>
             </mat-card-content>
           </mat-card>
