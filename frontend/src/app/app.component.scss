@@ -1,46 +1,56 @@
+@use '../variables' as v;
+@use '../mixins' as m;
+
 /* ===== top bar ===== */
-.topbar { display:flex; align-items:center; gap:12px; padding:10px 12px; border-bottom:1px solid #222; }
-.brand { font-weight:800; font-size:18px; }
-.spacer { flex:1 1 auto; }
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: v.$space-md;
+  padding: v.$space-sm v.$space-md;
+  border-bottom: 1px solid #222;
+}
+.brand { @include m.font(lg, 800); }
+.spacer { flex: 1 1 auto; }
 
 /* ===== layout ===== */
-.section { padding:12px; }
-.grid { display:grid; gap:12px; }
+.section { padding: v.$space-md; }
+.grid { display: grid; gap: v.$space-md; }
 .grid-2 { grid-template-columns: 1fr 1fr; }
 
+/* ===== card ===== */
 .card {
-    border:1px solid #222;
-    border-radius:10px;
-    padding:10px;
-    background:#0d0f12;
-    display:flex;
-    flex-direction:column;
-    min-height:0;
+  border: 1px solid #222;
+  border-radius: v.$space-md;
+  padding: v.$space-sm;
+  background: v.$color-panel;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* Шапка карточки (заголовок + иконки справа) */
 .card-head {
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    gap:10px;
-    margin: -6px -6px 8px -6px;  /* лёгкое «растягивание» до краёв карточки */
-    padding: 6px;
-    border-bottom:1px solid #1b1f24;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: v.$space-sm;
+  margin: -#{v.$space-xs} -#{v.$space-xs} v.$space-sm -#{v.$space-xs};
+  padding: v.$space-xs;
+  border-bottom: 1px solid #1b1f24;
 }
-.card-title { font-weight:700; }
-.card-actions { display:flex; align-items:center; gap:6px; }
+.card-title { @include m.font(base, 700); }
+.card-actions { display:flex; align-items:center; gap: v.$space-xs; }
 
 /* универсальный контейнер контента на всю высоту карточки */
 .fill { flex:1 1 auto; display:block; height:100%; min-height:0; }
 
 /* ===== ряд график/логи одинаковой высоты и пополам ===== */
 .row-tv-logs {
-    display:grid;
-    grid-template-columns: 1fr 1fr;
-    gap:12px;
-    height:56vh;
-    min-height:420px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: v.$space-md;
+  height: 56vh;
+  min-height: 420px;
 }
 .row-tv-logs .card { height:100%; display:flex; min-height:0; }
 .row-tv-logs .card .fill,
@@ -52,45 +62,45 @@
 .row-tv-logs .card:last-child .fill { overflow:auto; }
 
 /* ===== risk block ===== */
-.risk-summary { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
-.risk-item { border:1px solid #1b1f24; border-radius:10px; padding:8px 10px; background:#0f1216; }
-.risk-item .k { font-size:12px; opacity:.7; }
-.risk-item .v { font-weight:700; }
-.guards-wrap { margin-top:10px; }
+.risk-summary { display:flex; gap:v.$space-md; align-items:center; flex-wrap:wrap; margin-bottom:v.$space-sm; }
+.risk-item { border:1px solid #1b1f24; border-radius:v.$space-md; padding:v.$space-sm v.$space-md; background:v.$color-panel; }
+.risk-item .k { @include m.font(sm); opacity:.7; }
+.risk-item .v { @include m.font(base,700); }
+.guards-wrap { margin-top:v.$space-sm; }
 
 /* ===== overlay (history/config) ===== */
 .overlay {
-    position:fixed; inset:0;
-    background:rgba(0,0,0,.55);
-    backdrop-filter: blur(2px);
-    display:flex; align-items:center; justify-content:center;
-    z-index:9999;
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.55);
+  backdrop-filter: blur(2px);
+  display:flex; align-items:center; justify-content:center;
+  z-index:9999;
 }
 .panel {
-    width:min(1000px, 96vw);
-    max-height:92vh;
-    overflow:auto;
-    background:#0d0f12;
-    border:1px solid #222;
-    border-radius:16px;
-    padding:14px;
-    display:flex; flex-direction:column; gap:12px;
+  width:min(1000px, 96vw);
+  max-height:92vh;
+  overflow:auto;
+  background:v.$color-panel;
+  border:1px solid #222;
+  border-radius:v.$space-lg;
+  padding:v.$space-md;
+  display:flex; flex-direction:column; gap:v.$space-md;
 }
 .panel-wide { width:min(1200px, 98vw); }
-.panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-.title { font-weight:800; font-size:18px; }
-.panel-body { display:grid; gap:14px; }
+.panel-head { display:flex; align-items:center; justify-content:space-between; gap:v.$space-sm; }
+.title { @include m.font(lg,800); }
+.panel-body { display:grid; gap:v.$space-md; }
 
 /* ===== groups in overlay ===== */
-.group { border:1px solid #1b1f24; border-radius:12px; padding:12px; display:grid; gap:10px; background:#0f1216; }
-.group-title { font-weight:700; opacity:.9; }
-.group-title-row { display:flex; align-items:center; gap:8px; font-weight:700; opacity:.9; }
+.group { border:1px solid #1b1f24; border-radius:v.$space-md; padding:v.$space-md; display:grid; gap:v.$space-sm; background:v.$color-panel; }
+.group-title { @include m.font(base,700); opacity:.9; }
+.group-title-row { display:flex; align-items:center; gap:v.$space-sm; @include m.font(base,700); opacity:.9; }
 
 /* ===== tables (общая стилизация) ===== */
 .tbl { width:100%; border-collapse:collapse; }
-.tbl th, .tbl td { border-bottom:1px solid #222; padding:6px 8px; text-align:left; }
+.tbl th, .tbl td { border-bottom:1px solid #222; padding:v.$space-xs v.$space-sm; text-align:left; }
 /* мелкий шрифт — для ордеров/логов/истории */
-.tbl.small th, .tbl.small td { padding:4px 6px; font-size:12px; }
+.tbl.small th, .tbl.small td { padding:v.$space-xs v.$space-sm; @include m.font(sm); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .muted { color:#96a0a9; }
 .buy { color:#2ecc71; font-weight:700; }
@@ -99,10 +109,10 @@
 .loss { color:#ff7675; }
 
 /* прокрутка внутри коробки (используется в истории) */
-.scroll { max-height: 380px; overflow: auto; border:1px solid #1b1f24; border-radius:10px; }
+.scroll { max-height:380px; overflow:auto; border:1px solid #1b1f24; border-radius:v.$space-md; }
 
 /* ===== responsiveness ===== */
 @media (max-width: 900px) {
-    .grid-2 { grid-template-columns: 1fr; }
-    .row-tv-logs { grid-template-columns: 1fr; height: 60vh; }
+  .grid-2 { grid-template-columns:1fr; }
+  .row-tv-logs { grid-template-columns:1fr; height:60vh; }
 }

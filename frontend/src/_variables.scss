@@ -1,0 +1,32 @@
+$color-bg: #0e0f14;
+$color-card: #151823;
+$color-panel: #0d0f12;
+$color-accent: #7c4dff;
+$color-ok: #00e676;
+$color-warn: #ffc400;
+$color-bad: #ff5252;
+
+$font-family-base: 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+$font-size-sm: 12px;
+$font-size-base: 16px;
+$font-size-lg: 18px;
+
+$font-sizes: (
+  sm: $font-size-sm,
+  base: $font-size-base,
+  lg: $font-size-lg
+);
+
+$space-xs: 4px;
+$space-sm: 8px;
+$space-md: 12px;
+$space-lg: 16px;
+
+$spaces: (
+  xs: $space-xs,
+  sm: $space-sm,
+  md: $space-md,
+  lg: $space-lg
+);
+
+$icon-font-family: 'Material Icons';
