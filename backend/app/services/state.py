@@ -171,8 +171,10 @@ class AppState:
         except Exception:
             logger.exception("Failed to dump balances")
 
-        await self.stop_bot()
-        self._panic_triggered = False
+        try:
+            await self.stop_bot()
+        finally:
+            self._panic_triggered = False
 
     async def handle_cmd(self, cmd: str, save: bool = False) -> None:
         c = (cmd or "").lower()
