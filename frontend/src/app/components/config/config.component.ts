@@ -60,6 +60,11 @@ export class ConfigComponent {
         autostart: [false],
       }),
       shadow: this.fb.group({
+        enabled: [true],
+        alpha: [0.85],
+        latency_ms: [120],
+        post_only_reject: [true],
+        market_slippage_bps: [1.0],
         rest_base: [''],
         ws_base: [''],
       }),
@@ -67,19 +72,68 @@ export class ConfigComponent {
         chart: [''],
         theme: [''],
       }),
+      features: this.fb.group({
+        risk_protections: [true],
+        market_widget_feed: [true],
+      }),
       risk: this.fb.group({
-        max_drawdown_pct: [0],
-        dd_window_sec: [0],
-        stop_duration_sec: [0],
-        cooldown_sec: [0],
+        max_drawdown_pct: [10],
+        dd_window_sec: [24 * 3600],
+        stop_duration_sec: [12 * 3600],
+        cooldown_sec: [30 * 60],
         min_trades_for_dd: [0],
       }),
-      strategy: this.fb.group({
-        symbol: [''],
-        market_maker: this.fb.group({
-          aggressive_take: [false],
-          capital_usage: [0],
+      history: this.fb.group({
+        db_path: ['data/history.db'],
+        retention_days: [365],
+      }),
+      scanner: this.fb.group({
+        enabled: [false],
+        quote: ['USDT'],
+        min_price: [0.0001],
+        min_vol_usdt_24h: [3_000_000],
+        top_by_volume: [120],
+        max_pairs: [60],
+        min_spread_bps: [5],
+        vol_bars: [0],
+        score: this.fb.group({
+          w_spread: [1.0],
+          w_vol: [0.3],
         }),
+        whitelist: [''],
+        blacklist: [''],
+      }),
+      strategy: this.fb.group({
+        name: ['market_maker'],
+        market_maker: this.fb.group({
+          symbol: ['BNBUSDT'],
+          quote_size: [10],
+          capital_usage: [1],
+          min_spread_pct: [0],
+          cancel_timeout: [10],
+          reorder_interval: [1],
+          loop_sleep: [0.2],
+          depth_level: [5],
+          maker_fee_pct: [0.1],
+          taker_fee_pct: [0.1],
+          econ: this.fb.group({
+            min_net_pct: [0.1],
+          }),
+          post_only: [true],
+          aggressive_take: [false],
+          aggressive_bps: [0],
+          inventory_target: [0.5],
+          inventory_tolerance: [0.5],
+          allow_short: [false],
+          status_poll_interval: [2],
+          stats_interval: [30],
+          ws_timeout: [2],
+          bootstrap_on_idle: [true],
+          rest_bootstrap_interval: [3],
+          plan_log_interval: [5],
+          paper_cash: [1000],
+        }),
+        trend_follow: this.fb.group({}),
       }),
     });
   }
@@ -98,7 +152,19 @@ export class ConfigComponent {
       next: (res: ConfigGetResponse) => {
         const cfg: Config = isConfigResp(res) ? res.cfg : res;
         this.cfgForm.reset();
-        if (cfg) this.cfgForm.patchValue(cfg);
+        if (cfg) {
+          const copy: any = { ...cfg };
+          if (copy.scanner) {
+            copy.scanner = { ...copy.scanner };
+            copy.scanner.whitelist = Array.isArray(copy.scanner.whitelist)
+              ? copy.scanner.whitelist.join(', ')
+              : copy.scanner.whitelist;
+            copy.scanner.blacklist = Array.isArray(copy.scanner.blacklist)
+              ? copy.scanner.blacklist.join(', ')
+              : copy.scanner.blacklist;
+          }
+          this.cfgForm.patchValue(copy);
+        }
         this.loading = false;
       },
       error: (e: unknown) => {
@@ -111,6 +177,22 @@ export class ConfigComponent {
   save() {
     this.err = '';
     const cfg = this.cfgForm.getRawValue() as Config;
+    if (cfg.scanner) {
+      const wl = cfg.scanner.whitelist as unknown;
+      if (typeof wl === 'string') {
+        cfg.scanner.whitelist = wl
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s);
+      }
+      const bl = cfg.scanner.blacklist as unknown;
+      if (typeof bl === 'string') {
+        cfg.scanner.blacklist = bl
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s);
+      }
+    }
     this.api.putConfig(cfg).subscribe({
       next: () => {
         this.snack.open('Сохранено', 'OK', { duration: 1200 });
@@ -127,7 +209,19 @@ export class ConfigComponent {
     this.api.getDefaultConfig().subscribe({
       next: (res: ConfigResponse) => {
         this.cfgForm.reset();
-        if (res?.cfg) this.cfgForm.patchValue(res.cfg);
+        if (res?.cfg) {
+          const copy: any = { ...res.cfg };
+          if (copy.scanner) {
+            copy.scanner = { ...copy.scanner };
+            copy.scanner.whitelist = Array.isArray(copy.scanner.whitelist)
+              ? copy.scanner.whitelist.join(', ')
+              : copy.scanner.whitelist;
+            copy.scanner.blacklist = Array.isArray(copy.scanner.blacklist)
+              ? copy.scanner.blacklist.join(', ')
+              : copy.scanner.blacklist;
+          }
+          this.cfgForm.patchValue(copy);
+        }
       },
       error: (e: unknown) => {
         this.err = String((e as { message?: string })?.message || e);
@@ -139,7 +233,19 @@ export class ConfigComponent {
     this.api.restoreConfig().subscribe({
       next: (res: ConfigResponse) => {
         this.cfgForm.reset();
-        if (res?.cfg) this.cfgForm.patchValue(res.cfg);
+        if (res?.cfg) {
+          const copy: any = { ...res.cfg };
+          if (copy.scanner) {
+            copy.scanner = { ...copy.scanner };
+            copy.scanner.whitelist = Array.isArray(copy.scanner.whitelist)
+              ? copy.scanner.whitelist.join(', ')
+              : copy.scanner.whitelist;
+            copy.scanner.blacklist = Array.isArray(copy.scanner.blacklist)
+              ? copy.scanner.blacklist.join(', ')
+              : copy.scanner.blacklist;
+          }
+          this.cfgForm.patchValue(copy);
+        }
         this.snack.open('Откат выполнен', 'OK', { duration: 1200 });
       },
       error: (e: unknown) => {
