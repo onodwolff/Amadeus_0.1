@@ -1,6 +1,22 @@
 :host { display:block; }
-.tbl { width:100%; border-collapse:collapse; font-size: 12px; }
-.tbl th, .tbl td { border-bottom:1px solid #222; padding:4px 6px; text-align:left; }
+.tbl {
+  width:100%;
+  border-collapse:collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+.tbl th, .tbl td {
+  border-bottom:1px solid #222;
+  padding:4px 6px;
+  text-align:left;
+}
+/* фиксированные ширины колонок */
+.tbl th:nth-child(1), .tbl td:nth-child(1) { width:60px; }
+.tbl th:nth-child(2), .tbl td:nth-child(2) { width:60px; }
+.tbl th:nth-child(3), .tbl td:nth-child(3) { width:100px; }
+.tbl th:nth-child(4), .tbl td:nth-child(4) { width:80px; }
+.tbl th:nth-child(5), .tbl td:nth-child(5) { width:80px; }
+.tbl th:nth-child(6), .tbl td:nth-child(6) { width:120px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .buy { color:#2ecc71; font-weight:700; }
 .sell { color:#ff7675; font-weight:700; }
