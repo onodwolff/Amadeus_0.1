@@ -78,7 +78,6 @@ class StrategyEconConfig(BaseModel):
 class MarketMakerStrategyConfig(BaseModel):
     symbol: str = "BNBUSDT"
     quote_size: float = 10.0
-    target_pct: float = 0.5
     min_spread_pct: float = 0.0
     cancel_timeout: float = 10.0
     reorder_interval: float = 1.0
@@ -90,6 +89,8 @@ class MarketMakerStrategyConfig(BaseModel):
     post_only: bool = True
     aggressive_take: bool = False
     aggressive_bps: float = 0.0
+    inventory_target: float = 0.5
+    inventory_tolerance: float = 0.5
     allow_short: bool = False
     status_poll_interval: float = 2.0
     stats_interval: float = 30.0

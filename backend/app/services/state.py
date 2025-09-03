@@ -646,7 +646,14 @@ class AppState:
     def status(self) -> BotStatus:
         m: Dict[str, Any] = {"ws_clients": len(self._clients)}
         if self.strategy is not None:
-            for key in ("ticks_total", "orders_total", "orders_active", "orders_filled", "orders_expired"):
+            for key in (
+                "ticks_total",
+                "orders_total",
+                "orders_active",
+                "orders_filled",
+                "orders_expired",
+                "inventory_ratio",
+            ):
                 val = getattr(self.strategy, key, None)
                 if val is not None:
                     m[key] = val

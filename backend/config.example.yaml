@@ -42,7 +42,6 @@ strategy:
   market_maker:
     symbol: BNBUSDT
     quote_size: 10.0
-    target_pct: 0.5
     min_spread_pct: 0.0
     cancel_timeout: 10.0
     reorder_interval: 1.0
@@ -55,6 +54,8 @@ strategy:
     post_only: true
     aggressive_take: false
     aggressive_bps: 0.0
+    inventory_target: 0.5
+    inventory_tolerance: 0.1
     allow_short: false
     status_poll_interval: 2.0
     stats_interval: 30.0
