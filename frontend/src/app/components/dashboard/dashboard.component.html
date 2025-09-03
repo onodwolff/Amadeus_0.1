@@ -48,3 +48,9 @@
         <app-equity-sparkline></app-equity-sparkline>
     </div>
 </div>
+
+<div class="grid" style="margin-top:12px">
+    <div class="cell" style="grid-column: span 3; text-align:center;">
+        <button mat-raised-button color="warn" (click)="panicSell()" [disabled]="!running">PANIC SELL</button>
+    </div>
+</div>
