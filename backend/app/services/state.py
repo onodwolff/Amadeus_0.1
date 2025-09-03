@@ -79,6 +79,58 @@ class AppState:
             self.broadcast_status()
         except Exception:
             logger.exception("Failed to broadcast status after config update")
+        
+    # --------------- Runtime flag toggles ---------------
+    async def toggle_paper(self, save: bool = False) -> bool:
+        api = self.cfg.setdefault("api", {})
+        was_running = self.is_running()
+        if was_running:
+            await self.stop_bot()
+        paper = not bool(api.get("paper", True))
+        api["paper"] = paper
+        self.set_cfg(self.cfg)
+        settings.runtime_cfg = self.cfg
+        if save:
+            settings.dump_yaml()
+        if was_running:
+            await self.start_bot()
+        self.broadcast("diag", text=f"Paper mode {'ON' if paper else 'OFF'}")
+        return paper
+
+    def toggle_aggressive_take(self, save: bool = False) -> bool:
+        strat_root = self.cfg.setdefault("strategy", {})
+        mm = strat_root.setdefault("market_maker", {})
+        aggressive = not bool(mm.get("aggressive_take", False))
+        mm["aggressive_take"] = aggressive
+        self.set_cfg(self.cfg)
+        settings.runtime_cfg = self.cfg
+        if hasattr(self.strategy, "aggressive_take"):
+            try:
+                self.strategy.aggressive_take = aggressive  # type: ignore
+            except Exception:
+                logger.exception("Failed to set strategy.aggressive_take")
+        if save:
+            settings.dump_yaml()
+        self.broadcast("diag", text=f"Aggressive take {'ON' if aggressive else 'OFF'}")
+        return aggressive
+
+    async def toggle_quotes(self) -> bool:
+        if self.is_running():
+            await self.stop_bot()
+            return False
+        await self.start_bot()
+        return True
+
+    async def handle_cmd(self, cmd: str, save: bool = False) -> None:
+        c = (cmd or "").lower()
+        if c == "p":
+            await self.toggle_paper(save=save)
+        elif c == "a":
+            self.toggle_aggressive_take(save=save)
+        elif c == "s":
+            await self.toggle_quotes()
+        else:
+            self.broadcast("diag", text=f"Unknown cmd: {cmd}")
 
     # --------------- Feature toggles ---------------
     @property
