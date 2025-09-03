@@ -44,6 +44,7 @@ strategy:
   min_spread_pct: 0.0
   cancel_timeout: 10.0
   reorder_interval: 1.0
+  loop_sleep: 0.2
   depth_level: 5
   maker_fee_pct: 0.1
   taker_fee_pct: 0.1
