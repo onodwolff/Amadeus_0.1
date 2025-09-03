@@ -20,6 +20,29 @@ All API and WebSocket endpoints require a static bearer token.
 
 Changing `API_TOKEN` will invalidate existing clients.
 
+## Standalone scanner
+
+The pair scanner can be used without starting the trading bot. The `/scanner/scan` route will
+create a temporary Binance `AsyncClient` when no global client is available. Provide your API
+credentials via environment variables before launching the backend:
+
+```bash
+export BINANCE_API_KEY="your_key"
+export BINANCE_API_SECRET="your_secret"
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Then call the scanner endpoint:
+
+```bash
+curl -X POST "http://localhost:8000/scanner/scan" \
+     -H "Authorization: Bearer $API_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{}'
+```
+
+The request returns the best trading pair and the top candidates based on your configuration.
+
 ## Testing
 
 1. Install dependencies:
