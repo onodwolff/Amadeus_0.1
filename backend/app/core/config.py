@@ -123,31 +123,54 @@ class RuntimeConfig(BaseModel):
 
 
 class AppSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore", populate_by_name=True)
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="", extra="ignore", populate_by_name=True
+    )
 
     app_host: str = Field("0.0.0.0", alias="APP_HOST")
     app_port: int = Field(8000, alias="APP_PORT")
     app_reload: bool = Field(False, alias="APP_RELOAD")
     app_origins: str = Field("*", alias="APP_ORIGINS")
 
-    api_token: str = Field("b1a7528e92de0ce1e456b7afad435b47ce870dcb41688de2af9e815a5a65372c", alias="API_TOKEN")
+    api_token: str = Field(
+        "b1a7528e92de0ce1e456b7afad435b47ce870dcb41688de2af9e815a5a65372c",
+        alias="API_TOKEN",
+    )
 
     binance_api_key: Optional[str] = Field(None, alias="BINANCE_API_KEY")
     binance_api_secret: Optional[str] = Field(None, alias="BINANCE_API_SECRET")
 
     app_config_file: Optional[str] = Field(None, alias="APP_CONFIG_FILE")
 
-    default_cfg: Dict[str, Any] = Field(default_factory=lambda: RuntimeConfig().model_dump())
-    runtime_cfg: Dict[str, Any] = Field(default_factory=lambda: RuntimeConfig().model_dump())
+    default_cfg: Dict[str, Any] = Field(
+        default_factory=lambda: RuntimeConfig().model_dump()
+    )
+    runtime_cfg: Dict[str, Any] = Field(
+        default_factory=lambda: RuntimeConfig().model_dump()
+    )
 
     def load_yaml(self):
-        path = self.app_config_file or os.getenv("APP_CONFIG_FILE") or "./config.yaml"
+        env_file = os.getenv("APP_CONFIG_FILE")
+        path = self.app_config_file or env_file or "./config.yaml"
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8-sig") as f:
                     data = yaml.safe_load(f) or {}
             except yaml.YAMLError as e:
                 raise ValueError(f"Invalid YAML: {e}") from e
+            # Backward compatibility: legacy strategy fields at top level
+            strat_section = data.get("strategy")
+            if isinstance(strat_section, dict):
+                # Detect legacy format with flattened strategy fields
+                if (
+                    "symbol" in strat_section or "quote_size" in strat_section
+                ) and "market_maker" not in strat_section:
+                    name = strat_section.pop("name", "market_maker")
+                    data["strategy"] = {
+                        "name": name,
+                        "market_maker": strat_section,
+                    }
+
             try:
                 cfg = RuntimeConfig.model_validate(data)
             except ValidationError as e:
@@ -159,7 +182,12 @@ class AppSettings(BaseSettings):
     def dump_yaml(self, path: Optional[str] = None):
         p = path or self.app_config_file or "./config.yaml"
         with open(p, "w", encoding="utf-8") as f:
-            yaml.safe_dump(self.runtime_cfg, f, allow_unicode=True, sort_keys=False)
+            yaml.safe_dump(
+                self.runtime_cfg,
+                f,
+                allow_unicode=True,
+                sort_keys=False,
+            )
 
 
 settings = AppSettings()

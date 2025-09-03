@@ -3,6 +3,40 @@ import pytest
 from backend.app.core.config import AppSettings
 
 
+def test_legacy_strategy_format_loads(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        yaml.safe_dump({"strategy": {"symbol": "ETHUSDT", "quote_size": 1.5}})
+    )
+
+    s = AppSettings(app_config_file=str(cfg_file))
+    s.load_yaml()
+
+    mm = s.runtime_cfg["strategy"]["market_maker"]
+    assert mm["symbol"] == "ETHUSDT"
+    assert mm["quote_size"] == 1.5
+
+
+def test_current_strategy_format_loads(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(
+        yaml.safe_dump(
+            {
+                "strategy": {
+                    "name": "market_maker",
+                    "market_maker": {"symbol": "ETHUSDT"},
+                }
+            }
+        )
+    )
+
+    s = AppSettings(app_config_file=str(cfg_file))
+    s.load_yaml()
+
+    mm = s.runtime_cfg["strategy"]["market_maker"]
+    assert mm["symbol"] == "ETHUSDT"
+
+
 def test_load_yaml_defaults(tmp_path):
     cfg_file = tmp_path / "config.yaml"
     cfg_data = {
@@ -60,7 +94,14 @@ def test_load_yaml_defaults(tmp_path):
 def test_loop_sleep_override(tmp_path):
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(
-        yaml.safe_dump({"strategy": {"name": "market_maker", "market_maker": {"loop_sleep": 0.5}}})
+        yaml.safe_dump(
+            {
+                "strategy": {
+                    "name": "market_maker",
+                    "market_maker": {"loop_sleep": 0.5},
+                }
+            }
+        )
     )
     s = AppSettings(app_config_file=str(cfg_file))
     s.load_yaml()
