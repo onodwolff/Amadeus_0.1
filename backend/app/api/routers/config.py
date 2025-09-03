@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
 
 from ...core.config import settings
 from ...services.state import get_state
