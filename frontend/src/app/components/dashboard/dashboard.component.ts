@@ -6,6 +6,7 @@ import { BotStatus } from '../../models';
 import { WsService } from '../../services/ws.service';
 import { Subscription } from 'rxjs';
 import { EquitySparklineComponent } from '../equity-sparkline/equity-sparkline.component'; // ⬅️ импорт спарклайна
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 interface WsStats { ws_clients: number; ws_rate: number; }
 interface MarketSnap { symbol?: string; bid?: number; ask?: number; last?: number; ts?: number; raw?: any; }
@@ -29,7 +30,7 @@ export class DashboardComponent implements OnDestroy {
 
   private sub = new Subscription();
 
-  constructor(private api: ApiService, private wsSvc: WsService) {
+  constructor(private api: ApiService, private wsSvc: WsService, private snack: MatSnackBar) {
     this.refreshStatus();
     this.bindWs();
   }
@@ -88,5 +89,13 @@ export class DashboardComponent implements OnDestroy {
           }
         })
     );
+  }
+
+  panicSell() {
+    if (!window.confirm('Выполнить PANIC SELL?')) return;
+    this.api.cmd('x').subscribe({
+      next: _ => this.snack.open('Panic sell executed', 'OK', { duration: 2000 }),
+      error: err => this.snack.open(`Ошибка: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 })
+    });
   }
 }
