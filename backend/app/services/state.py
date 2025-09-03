@@ -231,6 +231,24 @@ class AppState:
             state=self,
         )
 
+        # Auto-pick trading pair using scanner if enabled
+        sc_cfg = (cfg.get("scanner") or {})
+        if sc_cfg.get("enabled"):
+            try:
+                from .pair_scanner import PairScanner
+
+                scanner = PairScanner(cfg, self.binance.client)  # type: ignore[arg-type]
+                data = await scanner.pick_best()
+                best_sym = str((data.get("best") or {}).get("symbol") or "").upper()
+                if best_sym:
+                    strategy_cfg = cfg.setdefault("strategy", {})
+                    strategy_cfg["symbol"] = best_sym
+                    self.broadcast("diag", text=f"Auto-selected pair: {best_sym}")
+                    logger.info("Auto-selected pair: %s", best_sym)
+            except Exception as e:  # pragma: no cover - network / client errors
+                self.broadcast("diag", text=f"Scanner failed: {e!s}; using config symbol")
+                logger.warning("Pair scanner failed: %s", e)
+
         self.mm = MarketMaker(cfg, client_wrapper=self.binance, events_cb=self.on_event)
 
         if self.market_widget_feed_enabled:

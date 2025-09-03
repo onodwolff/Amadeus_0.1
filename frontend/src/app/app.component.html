@@ -3,6 +3,11 @@
     <div class="brand">{{ title }}</div>
     <div class="spacer"></div>
 
+    <!-- Scanner -->
+    <button mat-icon-button aria-label="Scanner" (click)="openScanner()" matTooltip="Сканер пар">
+        <mat-icon>search</mat-icon>
+    </button>
+
     <!-- История -->
     <button mat-icon-button aria-label="История" (click)="openHistory()" matTooltip="История / Live">
         <mat-icon>history</mat-icon>
@@ -216,6 +221,20 @@
             </div>
         </div>
 
+    </div>
+</div>
+
+<!-- ======= OVERLAY: SCANNER ======= -->
+<div class="overlay" *ngIf="showScanner" (click)="closeOverlays()">
+    <div class="panel panel-wide" (click)="$event.stopPropagation()">
+        <div class="panel-head">
+            <div class="title">Сканер</div>
+            <span class="spacer"></span>
+            <button mat-icon-button (click)="closeOverlays()"><mat-icon>close</mat-icon></button>
+        </div>
+        <div class="panel-body">
+            <app-scanner></app-scanner>
+        </div>
     </div>
 </div>
 

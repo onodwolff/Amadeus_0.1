@@ -1,0 +1,32 @@
+<div class="group">
+  <div class="group-title">Scanner Settings</div>
+  <div class="form-grid">
+    <label>Quote <input matInput [(ngModel)]="cfg.quote"></label>
+    <label>Min price <input matInput type="number" [(ngModel)]="cfg.min_price"></label>
+    <label>Min vol USDT 24h <input matInput type="number" [(ngModel)]="cfg.min_vol_usdt_24h"></label>
+    <label>Top by volume <input matInput type="number" [(ngModel)]="cfg.top_by_volume"></label>
+    <label>Max pairs <input matInput type="number" [(ngModel)]="cfg.max_pairs"></label>
+    <label>Min spread bps <input matInput type="number" [(ngModel)]="cfg.min_spread_bps"></label>
+  </div>
+  <button mat-stroked-button (click)="scan()" [disabled]="loading">{{ loading ? 'Scanning…' : 'Scan' }}</button>
+</div>
+<div *ngIf="err" class="err">{{ err }}</div>
+
+<div *ngIf="best" class="group">
+  <div class="group-title">Best: {{ best.symbol }}</div>
+  <div class="muted">Spread {{ best.spread_bps | number:'1.2-2' }} bps; Vol {{ best.vol_usdt_24h | number:'1.0-0' }}</div>
+</div>
+
+<table class="tbl small" *ngIf="top.length">
+  <thead>
+  <tr><th>Symbol</th><th>Spread bps</th><th>Vol USDT</th><th>Score</th></tr>
+  </thead>
+  <tbody>
+  <tr *ngFor="let s of top">
+    <td class="mono">{{ s.symbol }}</td>
+    <td class="mono">{{ s.spread_bps | number:'1.2-2' }}</td>
+    <td class="mono">{{ s.vol_usdt_24h | number:'1.0-0' }}</td>
+    <td class="mono">{{ s.score | number:'1.2-2' }}</td>
+  </tr>
+  </tbody>
+</table>

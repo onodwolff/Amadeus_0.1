@@ -32,6 +32,7 @@ import { TvLightweightComponent } from './components/tv-lightweight/tv-lightweig
 import { HistoryComponent } from './components/history/history.component';
 import { OrdersWidgetComponent } from './components/orders-widget/orders-widget.component';
 import { ConfigComponent } from './components/config/config.component';
+import { ScannerComponent } from './components/scanner/scanner.component';
 
 type Theme = 'dark' | 'light';
 type ChartMode = 'tv' | 'lightweight' | 'none';
@@ -50,7 +51,7 @@ interface DbRow { event: string; symbol: string; side: string; type: string; pri
     // Наши компоненты
     ControlsComponent, DashboardComponent, LogsComponent, GuardsComponent,
     TvAdvancedComponent, TvLightweightComponent,
-    HistoryComponent, OrdersWidgetComponent, ConfigComponent
+    HistoryComponent, OrdersWidgetComponent, ConfigComponent, ScannerComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
@@ -61,6 +62,7 @@ export class AppComponent implements OnInit, OnDestroy {
   // overlays
   showConfig = false;
   showHistory = false;
+  showScanner = false;
   histTab: 'live'|'db' = 'live';
 
   // UI
@@ -150,7 +152,8 @@ export class AppComponent implements OnInit, OnDestroy {
   // overlays
   openConfig() { this.showConfig = true; }
   openHistory() { this.showHistory = true; this.setHistTab('live'); }
-  closeOverlays() { this.showConfig = false; this.showHistory = false; }
+  openScanner() { this.showScanner = true; }
+  closeOverlays() { this.showConfig = false; this.showHistory = false; this.showScanner = false; }
 
   setHistTab(tab: 'live'|'db') { this.histTab = tab; if (tab === 'db') this.loadDbHistory(); }
 
