@@ -9,5 +9,5 @@ def test_partial_fill_emits_event():
     asyncio.run(client.shadow_exec.on_trade("TESTUSDT", price=100.0, qty=1.0, is_buyer_maker=False))
     updated = asyncio.run(client.get_order(symbol="TESTUSDT", orderId=order["orderId"]))
     assert updated["status"] == "PARTIALLY_FILLED"
-    assert any(e.get("event") == "PARTIALLY_FILLED" for e in events if e.get("type") == "order_event")
+    assert any(e.get("evt") == "PARTIALLY_FILLED" for e in events if e.get("type") == "order_event")
     asyncio.run(client.close())

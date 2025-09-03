@@ -54,18 +54,19 @@ class HistoryStore:
     # ---------- append ----------
     async def log_order_event(self, evt: Dict[str, Any]) -> None:
         """
-        evt: {type:'order_event', event:'NEW'|'FILL'|..., order:{symbol,side,type,price,qty,status,...}, ts?}
+        evt: {type:'order_event', evt:'NEW'|'FILLED'|..., id, symbol, side, price, qty, status?, ts?}
+        Совместимо со старым форматом {event, order:{...}}.
         """
         await self.init()
         o = evt.get("order") or {}
-        ts = float(evt.get("ts") or evt.get("time") or evt.get("T") or 0.0)
-        event = str(evt.get("event") or "")
-        symbol = str(o.get("symbol") or "")
-        side = (o.get("side") or "").upper() or None
-        typ = (o.get("type") or "").upper() or None
-        price = _to_float(o.get("price"))
-        qty = _to_float(o.get("qty") or o.get("quantity"))
-        status = (o.get("status") or "").upper() or None
+        ts = float(evt.get("ts") or evt.get("time") or evt.get("T") or o.get("updateTime") or o.get("transactTime") or 0.0)
+        event = str(evt.get("evt") or evt.get("event") or o.get("status") or evt.get("status") or "")
+        symbol = str(evt.get("symbol") or o.get("symbol") or "")
+        side = (evt.get("side") or o.get("side") or "").upper() or None
+        typ = (evt.get("ord_type") or o.get("type") or "").upper() or None
+        price = _to_float(evt.get("price") or o.get("price"))
+        qty = _to_float(evt.get("qty") or o.get("qty") or o.get("quantity") or o.get("origQty"))
+        status = (evt.get("status") or o.get("status") or event or "").upper() or None
         raw = json.dumps(evt, ensure_ascii=False)
         async with aiosqlite.connect(self.db_path.as_posix()) as db:
             await db.execute(
