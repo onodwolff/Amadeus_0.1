@@ -28,7 +28,7 @@ class AppState:
 
         # внешние сервисы/модули (лениво создаются при старте бота)
         self.binance = None   # type: ignore
-        self.mm = None        # type: ignore
+        self.strategy = None  # type: ignore
         self.history = None   # type: ignore
 
         # риск
@@ -206,12 +206,14 @@ class AppState:
             return
 
         from .binance_client import BinanceAsync
-        from .market_maker import MarketMaker
+        from .market_maker_strategy import MarketMakerStrategy
         from .history import HistoryStore
 
         cfg = self.cfg
         api = (cfg.get("api") or {})
         strategy = (cfg.get("strategy") or {})
+        strategy_name = str(strategy.get("name") or "market_maker")
+        strategy_cfg = strategy.get(strategy_name, {})
         shadow_cfg = (cfg.get("shadow") or {})
 
         paper = bool(api.get("paper", True))
@@ -231,10 +233,17 @@ class AppState:
             state=self,
         )
 
-        self.mm = MarketMaker(cfg, client_wrapper=self.binance, events_cb=self.on_event)
+        if strategy_name == "market_maker":
+            self.strategy = MarketMakerStrategy(
+                cfg, client_wrapper=self.binance, events_cb=self.on_event
+            )
+        else:
+            raise ValueError(f"Unknown strategy: {strategy_name}")
+
+        await self.strategy.start()
 
         if self.market_widget_feed_enabled:
-            sym = str(strategy.get("symbol") or "BTCUSDT")
+            sym = str(strategy_cfg.get("symbol") or "BTCUSDT")
             self._market_task = asyncio.create_task(self._market_widget_loop(sym))
 
         self._task = asyncio.create_task(self._run_loop())
@@ -263,15 +272,22 @@ class AppState:
             finally:
                 self._market_task = None
 
+        if self.strategy is not None:
+            try:
+                await self.strategy.stop()
+            except Exception:
+                logger.exception("Strategy stop failed")
         await self._close_binance()
-        self.mm = None
+        self.strategy = None
         self.broadcast("diag", text="STOPPED")
         self.broadcast_status()
         logger.info("bot stopped")
 
     async def _run_loop(self) -> None:
         cfg = self.cfg
-        loop_sleep = float((cfg.get("strategy") or {}).get("loop_sleep", 0.2))
+        strat = (cfg.get("strategy") or {})
+        name = str(strat.get("name") or "market_maker")
+        loop_sleep = float((strat.get(name) or {}).get("loop_sleep", 0.2))
         stats_interval = 1.0
         last_stats = time.time()
 
@@ -280,10 +296,10 @@ class AppState:
         try:
             while True:
                 try:
-                    if hasattr(self.mm, "step"):
-                        await self.mm.step()
-                    elif hasattr(self.mm, "run"):
-                        await self.mm.run()
+                    if hasattr(self.strategy, "step"):
+                        await self.strategy.step()
+                    elif hasattr(self.strategy, "run"):
+                        await self.strategy.run()
                     else:
                         await asyncio.sleep(loop_sleep)
                 except Exception as e:
@@ -293,7 +309,7 @@ class AppState:
                         tb = tb[-5000:]
                     for line in tb.splitlines():
                         self.broadcast("diag", text=line)
-                    logger.exception("mm loop error: %s", e)
+                    logger.exception("strategy loop error: %s", e)
                     await asyncio.sleep(0.5)
 
                 now = time.time()
@@ -496,12 +512,24 @@ class AppState:
 
     def status(self) -> BotStatus:
         m: Dict[str, Any] = {"ws_clients": len(self._clients)}
-        if self.mm is not None:
-            for key in ("ticks_total", "orders_total", "orders_active", "orders_filled", "orders_expired"):
-                val = getattr(self.mm, key, None)
+        if self.strategy is not None:
+            for key in (
+                "ticks_total",
+                "orders_total",
+                "orders_active",
+                "orders_filled",
+                "orders_expired",
+            ):
+                val = getattr(self.strategy, key, None)
                 if val is not None:
                     m[key] = val
-        sym = getattr(self.mm, "symbol", None) if self.mm else (self.cfg.get("strategy") or {}).get("symbol")
+        strat = (self.cfg.get("strategy") or {})
+        name = strat.get("name")
+        sym = (
+            getattr(self.strategy, "symbol", None)
+            if self.strategy
+            else (strat.get(name, {}) or {}).get("symbol")
+        )
         return BotStatus(running=self.is_running(), symbol=sym, metrics=m, cfg=self.cfg)
 
 

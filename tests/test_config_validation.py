@@ -8,9 +8,12 @@ def test_load_yaml_defaults(tmp_path):
     cfg_data = {
         "api": {"paper": False, "autostart": True, "shadow": True},
         "strategy": {
-            "symbol": "ETHUSDT",
-            "post_only": False,
-            "aggressive_take": True,
+            "name": "market_maker",
+            "market_maker": {
+                "symbol": "ETHUSDT",
+                "post_only": False,
+                "aggressive_take": True,
+            },
         },
         "ui": {"theme": "light"},
         "features": {"risk_protections": False},
@@ -28,10 +31,11 @@ def test_load_yaml_defaults(tmp_path):
     assert s.runtime_cfg["api"]["shadow"] is True
 
     # strategy section
-    assert s.runtime_cfg["strategy"]["symbol"] == "ETHUSDT"
-    assert s.runtime_cfg["strategy"]["post_only"] is False
-    assert s.runtime_cfg["strategy"]["aggressive_take"] is True
-    assert s.runtime_cfg["strategy"]["loop_sleep"] == 0.2
+    strat = s.runtime_cfg["strategy"]["market_maker"]
+    assert strat["symbol"] == "ETHUSDT"
+    assert strat["post_only"] is False
+    assert strat["aggressive_take"] is True
+    assert strat["loop_sleep"] == 0.2
 
     # ui section
     assert s.runtime_cfg["ui"]["theme"] == "light"
@@ -55,10 +59,12 @@ def test_load_yaml_defaults(tmp_path):
 
 def test_loop_sleep_override(tmp_path):
     cfg_file = tmp_path / "config.yaml"
-    cfg_file.write_text(yaml.safe_dump({"strategy": {"loop_sleep": 0.5}}))
+    cfg_file.write_text(
+        yaml.safe_dump({"strategy": {"name": "market_maker", "market_maker": {"loop_sleep": 0.5}}})
+    )
     s = AppSettings(app_config_file=str(cfg_file))
     s.load_yaml()
-    assert s.runtime_cfg["strategy"]["loop_sleep"] == 0.5
+    assert s.runtime_cfg["strategy"]["market_maker"]["loop_sleep"] == 0.5
 
 
 def test_defaults_when_sections_missing(tmp_path):
@@ -73,16 +79,19 @@ def test_defaults_when_sections_missing(tmp_path):
     assert s.runtime_cfg["risk"]["max_drawdown_pct"] == 10.0
     assert s.runtime_cfg["history"]["db_path"] == "data/history.db"
     assert s.runtime_cfg["api"]["paper"] is True
-    assert s.runtime_cfg["strategy"]["post_only"] is True
+    assert s.runtime_cfg["strategy"]["market_maker"]["post_only"] is True
 
 
 def test_dump_and_load_round_trip(tmp_path):
     cfg_data = {
         "api": {"paper": False, "autostart": True, "shadow": True},
         "strategy": {
-            "symbol": "BTCUSDT",
-            "allow_short": True,
-            "post_only": False,
+            "name": "market_maker",
+            "market_maker": {
+                "symbol": "BTCUSDT",
+                "allow_short": True,
+                "post_only": False,
+            },
         },
         "ui": {"chart": "tv", "theme": "light"},
         "features": {"risk_protections": False},
@@ -104,15 +113,19 @@ def test_dump_and_load_round_trip(tmp_path):
     assert s.runtime_cfg == s2.runtime_cfg
 
 
-@pytest.mark.parametrize("bad_section", [
-    {"strategy": {"unknown": 1}},
-    {"strategy": {"econ": {"unknown": 1}}},
-    {"ui": {"unknown": 1}},
-    {"features": {"unknown": 1}},
-    {"risk": {"unknown": 1}},
-    {"history": {"unknown": 1}},
-    {"api": {"unknown": 1}},
-])
+@pytest.mark.parametrize(
+    "bad_section",
+    [
+        {"strategy": {"unknown": 1}},
+        {"strategy": {"market_maker": {"unknown": 1}}},
+        {"strategy": {"market_maker": {"econ": {"unknown": 1}}}},
+        {"ui": {"unknown": 1}},
+        {"features": {"unknown": 1}},
+        {"risk": {"unknown": 1}},
+        {"history": {"unknown": 1}},
+        {"api": {"unknown": 1}},
+    ],
+)
 def test_load_yaml_invalid_field(tmp_path, bad_section):
     cfg_file = tmp_path / "config.yaml"
     cfg_file.write_text(yaml.safe_dump(bad_section))
