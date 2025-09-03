@@ -1,4 +1,4 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -12,6 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { ApiService } from './services/api.service';
 import { WsService } from './services/ws.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { Subscription } from 'rxjs';
 import {
   Config,
   ConfigGetResponse,
@@ -57,7 +58,7 @@ interface DbRow { event: string; symbol: string; side: string; type: string; pri
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, OnDestroy {
   title = 'Amadeus';
 
   // overlays
@@ -86,6 +87,8 @@ export class AppComponent implements OnInit {
     ui: { chart: 'tv', theme: 'dark' }
   };
 
+  wsSub?: Subscription;
+
   constructor(private api: ApiService, private ws: WsService, private snack: MatSnackBar) {}
 
   ngOnInit() {
@@ -105,7 +108,7 @@ export class AppComponent implements OnInit {
 
     // WS (live-история)
     this.ws.connect();
-    this.ws.messages$.subscribe((msg: unknown) => {
+    this.wsSub = this.ws.messages$.subscribe((msg: unknown) => {
       if (!msg || typeof msg !== 'object') return;
       const data = msg as Record<string, unknown>;
 
@@ -138,6 +141,10 @@ export class AppComponent implements OnInit {
         if (this.liveTrades.length > 100) this.liveTrades.splice(100);
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    this.wsSub?.unsubscribe();
   }
 
   // overlays
