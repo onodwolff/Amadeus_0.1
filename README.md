@@ -2,6 +2,8 @@
 
 This project provides a FastAPI backend and an Angular frontend for the Amadeus trading bot.
 
+> **Note**: building the frontend requires **Node.js 20+**.
+
 ## Authentication
 
 All API and WebSocket endpoints require a static bearer token.

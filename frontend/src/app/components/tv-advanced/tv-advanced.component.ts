@@ -2,6 +2,7 @@ import { Component, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService } from '../../services/api.service';
 import { ScriptLoaderService } from '../../services/script-loader.service';
+import { firstValueFrom } from 'rxjs';
 
 declare global {
     interface Window { TradingView?: any; }
@@ -35,7 +36,7 @@ export class TvAdvancedComponent {
 
     private async readConfig() {
         try {
-            const res: any = await this.api.getConfig().toPromise();
+            const res: any = await firstValueFrom(this.api.getConfig());
             const cfg = res?.cfg ?? res ?? {};
             const ui = cfg?.ui ?? {};
             const strat = cfg?.strategy ?? {};

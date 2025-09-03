@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, of, timer } from 'rxjs';
-import { catchError, switchMap } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of, timer, catchError, switchMap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import {
   BotStatus,
