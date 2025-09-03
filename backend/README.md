@@ -10,6 +10,8 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
 ```
 
+This starts the backend on port **8100**, matching the documentation in the project root.
+
 ## ENV
 See `.env.example`. Defaults to shadow/paper mode.
 
