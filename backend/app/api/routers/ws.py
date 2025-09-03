@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional
 import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketState
 from ...services.state import get_state
 from ...core.config import settings
 
@@ -168,6 +169,13 @@ async def ws_stream(ws: WebSocket):
         except Exception:
             logger.exception("Failed to unsubscribe websocket")
         try:
-            await ws.close(code=1000, reason="Connection closed")
+            if (
+                ws.client_state is not WebSocketState.DISCONNECTED
+                and ws.application_state is not WebSocketState.DISCONNECTED
+            ):
+                await ws.close(code=1000, reason="Connection closed")
+        except RuntimeError:
+            # Socket already closed; skip without logging
+            pass
         except Exception:
             logger.exception("Failed to close websocket")
