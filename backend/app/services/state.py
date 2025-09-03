@@ -46,6 +46,9 @@ class AppState:
         # метрики/эквити
         self.equity: Optional[float] = None
 
+        # флаг чтобы не дёргать panic_sell повторно
+        self._panic_triggered = False
+
         logger.info("Loaded cfg type=%s keys=%s", type(self.cfg).__name__, list(self.cfg.keys())[:8])
 
     # --------------- Config helpers ---------------
@@ -121,6 +124,55 @@ class AppState:
         await self.start_bot()
         return True
 
+    async def panic_sell(self) -> None:
+        """Cancel all orders and liquidate all non-USDT balances."""
+        if self._panic_triggered:
+            return
+        self._panic_triggered = True
+        self.broadcast("diag", text="PANIC SELL")
+
+        # отменяем активные ордера
+        try:
+            symbol = getattr(self.strategy, "symbol", None)
+            if (
+                self.strategy
+                and hasattr(self.strategy, "orders")
+                and self.binance
+                and hasattr(self.binance, "cancel_order")
+            ):
+                for po in list(self.strategy.orders.values()):  # type: ignore[attr-defined]
+                    oid = getattr(po, "id", getattr(po, "orderId", None))
+                    status = getattr(po, "status", None)
+                    if oid and status == "NEW":
+                        try:
+                            await self.binance.cancel_order(symbol=symbol, orderId=oid)
+                        except Exception:
+                            logger.exception("Failed to cancel order %s", oid)
+        except Exception:
+            logger.exception("Failed to cancel open orders")
+
+        # продаём все не-USDT балансы
+        try:
+            balances: Dict[str, float] = {}
+            if self.binance:
+                if hasattr(self.binance, "get_balances"):
+                    balances = await self.binance.get_balances()  # type: ignore[attr-defined]
+                elif hasattr(self.binance, "balances"):
+                    balances = getattr(self.binance, "balances")  # type: ignore[attr-defined]
+            for asset, qty in (balances or {}).items():
+                try:
+                    if asset.upper() == "USDT" or qty <= 0:
+                        continue
+                    sym = f"{asset.upper()}USDT"
+                    if hasattr(self.binance, "create_market_sell"):
+                        await self.binance.create_market_sell(sym, quantity=qty)  # type: ignore[attr-defined]
+                except Exception:
+                    logger.exception("Failed to panic sell %s", asset)
+        except Exception:
+            logger.exception("Failed to dump balances")
+
+        await self.stop_bot()
+
     async def handle_cmd(self, cmd: str, save: bool = False) -> None:
         c = (cmd or "").lower()
         if c == "p":
@@ -129,6 +181,8 @@ class AppState:
             self.toggle_aggressive_take(save=save)
         elif c == "s":
             await self.toggle_quotes()
+        elif c == "x":
+            await self.panic_sell()
         else:
             self.broadcast("diag", text=f"Unknown cmd: {cmd}")
 
@@ -228,6 +282,14 @@ class AppState:
         allowed, reason = self.risk_manager.can_enter(pair=symbol or None)
         if not allowed and reason:
             self.broadcast("diag", text=f"ENTRY BLOCKED: {reason}")
+            if (
+                self.risk_manager
+                and self.risk_manager.max_loss_pct > 0
+                and "Loss" in reason
+                and "%" in reason
+                and not self._panic_triggered
+            ):
+                asyncio.create_task(self.panic_sell())
         return allowed, reason
 
     def on_trade_closed(self, pair: str, pnl: float, stoploss_hit: bool = False):
