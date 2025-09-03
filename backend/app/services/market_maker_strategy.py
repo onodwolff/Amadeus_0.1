@@ -49,6 +49,7 @@ class MarketMakerStrategy(BaseStrategy):
 
         # Параметры стратегии
         self.quote_size: float     = float(strat.get("quote_size", 10.0))   # USDT на сделку
+        self.capital_usage: float  = max(0.0, min(1.0, float(strat.get("capital_usage", 1.0))))
         self.min_spread_pct: float = float(strat.get("min_spread_pct", 0.0))
         self.cancel_timeout: float = float(strat.get("cancel_timeout", 10.0))
         self.post_only: bool       = bool(strat.get("post_only", True))
@@ -85,6 +86,8 @@ class MarketMakerStrategy(BaseStrategy):
         # позиция
         self.position: float = 0.0
         self.avg_entry_price: float = 0.0
+        self.funds_in_use: float = 0.0
+        self.funds_reserve: float = 0.0
 
     # ----------------- жизненный цикл -----------------
     async def start(self) -> None:
@@ -249,11 +252,24 @@ class MarketMakerStrategy(BaseStrategy):
             px_buy = self._round_price(mid - offset * 0.5)
             px_sell = self._round_price(mid + offset * 1.5)
 
-        qty_buy = self._round_qty(self.quote_size / max(px_buy, 1e-9))
-        qty_sell = self._round_qty(self.quote_size / max(px_sell, 1e-9))
+        # доступный капитал
+        avail_quote = max(self.cash, 0.0) * self.capital_usage
+        buy_quote = min(self.quote_size, avail_quote)
+        qty_buy = self._round_qty(buy_quote / max(px_buy, 1e-9))
+
+        avail_base = max(self.position, 0.0) * self.capital_usage
+        desired_sell = self.quote_size / max(px_sell, 1e-9)
+        qty_sell = self._round_qty(min(desired_sell, avail_base))
 
         self._upsert_one(side="BUY", price=px_buy, qty=qty_buy)
         self._upsert_one(side="SELL", price=px_sell, qty=qty_sell)
+
+        self.funds_in_use = qty_buy * px_buy + qty_sell * px_sell
+        self.funds_reserve = max(total_funds - self.funds_in_use, 0.0)
+        self._emit({"type": "status", "metrics": {
+            "funds_in_use": self.funds_in_use,
+            "funds_reserve": self.funds_reserve,
+        }})
 
     def _find_open(self, side: str) -> Optional[PaperOrder]:
         # выбираем «самый свежий» активный ордер нужной стороны

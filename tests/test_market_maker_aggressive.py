@@ -23,6 +23,8 @@ def test_aggressive_take_places_taker_orders():
         }
     }
     mm = MarketMakerStrategy(cfg, DummyClient(), lambda evt: events.append(evt))
+    mm.cash = 1000.0
+    mm.position = 1.0
     mm.best_bid = 100.0
     mm.best_ask = 100.05
     asyncio.run(mm._step_once())
@@ -54,6 +56,8 @@ def test_aggressive_take_runtime_toggle():
         }
     }
     mm = MarketMakerStrategy(cfg, DummyClient(), lambda evt: events.append(evt))
+    mm.cash = 1000.0
+    mm.position = 1.0
     mm.best_bid = 100.0
     mm.best_ask = 100.05
     asyncio.run(mm._step_once())
