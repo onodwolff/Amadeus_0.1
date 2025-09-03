@@ -7,7 +7,7 @@ Pydantic 2.11+.
 
 > **Note**: building the frontend requires **Node.js 20+**.
 
-By default the FastAPI server listens on port **8100** and the Angular development server runs on port **4400**.
+By default, the FastAPI server listens on port **8100**, and the Angular development server runs on port **4400**.
 
 ## Authentication
 
