@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
+import { Component, OnInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -18,7 +18,6 @@ import {
   ConfigResponse,
   HistoryResponse,
   OrderHistoryItem,
-  RiskStatus,
   TradeHistoryItem,
   BotStatus,
 } from './models';
@@ -27,7 +26,7 @@ import {
 import { ControlsComponent } from './components/controls/controls.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { LogsComponent } from './components/logs/logs.component';
-import { GuardsComponent } from './components/guards/guards.component';
+import { RiskWidgetComponent } from './components/risk-widget/risk-widget.component';
 import { TvAdvancedComponent } from './components/tv-advanced/tv-advanced.component';
 import { TvLightweightComponent } from './components/tv-lightweight/tv-lightweight.component';
 import { HistoryComponent } from './components/history/history.component';
@@ -50,14 +49,15 @@ interface DbRow { event: string; symbol: string; side: string; type: string; pri
     // Материальные модули
     AppMaterialModule, MatTooltipModule, MatButtonModule, MatIconModule,
     // Наши компоненты
-    ControlsComponent, DashboardComponent, LogsComponent, GuardsComponent,
+    ControlsComponent, DashboardComponent, LogsComponent,
     TvAdvancedComponent, TvLightweightComponent,
-    HistoryComponent, OrdersWidgetComponent, ConfigComponent, ScannerComponent
+    HistoryComponent, OrdersWidgetComponent, ConfigComponent, ScannerComponent,
+    RiskWidgetComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
 })
-export class AppComponent implements OnInit, OnDestroy {
+export class AppComponent implements OnInit {
   title = 'Amadeus';
 
   // overlays
@@ -69,10 +69,6 @@ export class AppComponent implements OnInit, OnDestroy {
   // UI
   chartMode: ChartMode = 'tv';
   theme: Theme = 'dark';
-
-  // risk
-  risk: RiskStatus | null = null;
-  private riskTimer?: ReturnType<typeof setInterval>;
 
   // live lists
   liveOpen: Record<string, LiveOrder> = {};
@@ -106,10 +102,6 @@ export class AppComponent implements OnInit, OnDestroy {
       },
       error: _ => {}
     });
-
-    // риск — периодически
-    this.refreshRisk();
-    this.riskTimer = setInterval(() => this.refreshRisk(), 5000);
 
     // WS (live-история)
     this.ws.connect();
@@ -147,8 +139,6 @@ export class AppComponent implements OnInit, OnDestroy {
       }
     });
   }
-
-  ngOnDestroy() { if (this.riskTimer) clearInterval(this.riskTimer); }
 
   // overlays
   openConfig() { this.showConfig = true; }
@@ -253,9 +243,6 @@ export class AppComponent implements OnInit, OnDestroy {
       }, error: _ => this.dbTrades = [], complete: finish
     });
   }
-
-  // Риск
-  refreshRisk() { this.api.getRiskStatus().subscribe({ next: r => this.risk = r, error: _ => this.risk = null }); }
 
   // Chart toggle (сохраняем в конфиге)
   toggleChart() {
