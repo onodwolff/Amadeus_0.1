@@ -82,21 +82,7 @@
 
 <!-- ======= RISK (ниже графика) ======= -->
 <section class="section">
-    <div class="card">
-        <h3>Риск / Protections</h3>
-        <div class="risk-summary" *ngIf="risk; else noRisk">
-            <div class="risk-item"><div class="k">DD max %</div><div class="v">{{ risk.max_drawdown_pct ?? cfg.risk?.max_drawdown_pct }}</div></div>
-            <div class="risk-item"><div class="k">Locked</div><div class="v">{{ risk.locked ? 'Yes' : 'No' }}</div></div>
-            <div class="risk-item"><div class="k">Cooldown</div><div class="v">{{ risk.cooldown_left_sec || 0 }}s</div></div>
-            <div class="risk-item"><div class="k">MinTrades for DD</div><div class="v">{{ risk.min_trades_for_dd ?? cfg.risk?.min_trades_for_dd }}</div></div>
-            <button mat-stroked-button (click)="refreshRisk()">Обновить</button>
-        </div>
-        <ng-template #noRisk><div class="muted">Нет данных риска.</div></ng-template>
-
-        <div class="guards-wrap">
-            <app-guards></app-guards>
-        </div>
-    </div>
+    <app-risk-widget></app-risk-widget>
 </section>
 
 <!-- ======= OVERLAY: HISTORY ======= -->
