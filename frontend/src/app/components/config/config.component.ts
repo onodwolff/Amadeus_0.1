@@ -9,6 +9,7 @@ import { MatRadioModule } from '@angular/material/radio';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatExpansionModule } from '@angular/material/expansion';
 
 @Component({
   selector: 'app-config',
@@ -21,6 +22,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     MatSliderModule,
     MatFormFieldModule,
     MatTooltipModule,
+    MatExpansionModule,
   ],
   templateUrl: './config.component.html',
   styleUrls: ['./config.component.css'],
