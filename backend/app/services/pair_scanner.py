@@ -77,12 +77,13 @@ async def _gather_limited(coros, limit: int = 20):
 
 async def _scan_impl(cfg: Dict[str, Any], client: BinanceClientProtocol) -> Dict[str, Any]:
     sc = cfg.get("scanner", {})
+    paper = bool(cfg.get("api", {}).get("paper", False))
     quote = sc.get("quote", "USDT")
     min_price = float(sc.get("min_price", 0.0001))
-    min_vol_usdt = float(sc.get("min_vol_usdt_24h", 3_000_000))
+    min_vol_usdt = float(sc.get("min_vol_usdt_24h", 0 if paper else 3_000_000))
     top_by_volume = int(sc.get("top_by_volume", 120))
     max_pairs = int(sc.get("max_pairs", 60))
-    min_spread_bps = float(sc.get("min_spread_bps", 5.0))
+    min_spread_bps = float(sc.get("min_spread_bps", 0.0 if paper else 5.0))
     vol_bars = int(sc.get("vol_bars", 0))
     w_spread = float(sc.get("score", {}).get("w_spread", 1.0))
     w_vol = float(sc.get("score", {}).get("w_vol", 0.3))

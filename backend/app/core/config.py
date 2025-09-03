@@ -2,7 +2,7 @@ from __future__ import annotations
 import os
 import yaml
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field, ValidationError, ConfigDict
+from pydantic import BaseModel, Field, ValidationError, ConfigDict, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -120,6 +120,16 @@ class RuntimeConfig(BaseModel):
     scanner: ScannerConfig = ScannerConfig()
     strategy: StrategyConfig = StrategyConfig()
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def adjust_scanner_defaults(self) -> "RuntimeConfig":
+        """Lower scanner thresholds on paper/testnet to accommodate low liquidity."""
+        if self.api.paper:
+            if self.scanner.min_vol_usdt_24h == 3_000_000:
+                self.scanner.min_vol_usdt_24h = 0
+            if self.scanner.min_spread_bps == 5.0:
+                self.scanner.min_spread_bps = 0.0
+        return self
 
 
 class AppSettings(BaseSettings):
