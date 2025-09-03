@@ -48,6 +48,9 @@ history:
   retention_days: 365
 ```
 
+The `strategy` section includes a `loop_sleep` option to configure the pause in
+seconds between each iteration of the market-making loop. The default is `0.2`.
+
 ## Endpoints
 - `POST /bot/start`
 - `POST /bot/stop`

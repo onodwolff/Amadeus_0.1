@@ -22,6 +22,7 @@ def test_load_yaml_defaults(tmp_path):
     assert s.runtime_cfg["api"]["autostart"] is False
     assert s.runtime_cfg["api"]["shadow"] is False
     assert s.runtime_cfg["strategy"]["symbol"] == "ETHUSDT"
+    assert s.runtime_cfg["strategy"]["loop_sleep"] == 0.2
     assert s.runtime_cfg["ui"]["theme"] == "light"
     assert s.runtime_cfg["ui"]["chart"] == "tv"
     assert s.runtime_cfg["features"]["risk_protections"] is False
@@ -31,6 +32,14 @@ def test_load_yaml_defaults(tmp_path):
     assert s.runtime_cfg["history"]["db_path"] == "test.db"
     assert s.runtime_cfg["history"]["retention_days"] == 365
     assert s.runtime_cfg["shadow"]["enabled"] is True
+
+
+def test_loop_sleep_override(tmp_path):
+    cfg_file = tmp_path / "config.yaml"
+    cfg_file.write_text(yaml.safe_dump({"strategy": {"loop_sleep": 0.5}}))
+    s = AppSettings(app_config_file=str(cfg_file))
+    s.load_yaml()
+    assert s.runtime_cfg["strategy"]["loop_sleep"] == 0.5
 
 
 @pytest.mark.parametrize("bad_section", [

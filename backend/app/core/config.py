@@ -82,6 +82,7 @@ class StrategyConfig(BaseModel):
     min_spread_pct: float = 0.0
     cancel_timeout: float = 10.0
     reorder_interval: float = 1.0
+    loop_sleep: float = 0.2
     depth_level: int = 5
     maker_fee_pct: float = 0.1
     taker_fee_pct: float = 0.1
