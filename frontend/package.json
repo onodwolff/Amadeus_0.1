@@ -9,30 +9,30 @@
     "format": "prettier --write 'src/**/*.{ts,html,css}'"
   },
   "dependencies": {
-    "@angular/animations": "^17.3.0",
-    "@angular/cdk": "^17.3.0",
-    "@angular/common": "^17.3.0",
-    "@angular/compiler": "^17.3.0",
-    "@angular/core": "^17.3.0",
-    "@angular/forms": "^17.3.0",
-    "@angular/material": "^17.3.0",
-    "@angular/platform-browser": "^17.3.0",
-    "@angular/platform-browser-dynamic": "^17.3.0",
+    "@angular/animations": "^20.2.3",
+    "@angular/cdk": "^20.2.1",
+    "@angular/common": "^20.2.3",
+    "@angular/compiler": "^20.2.3",
+    "@angular/core": "^20.2.3",
+    "@angular/forms": "^20.2.3",
+    "@angular/material": "^20.2.1",
+    "@angular/platform-browser": "^20.2.3",
+    "@angular/platform-browser-dynamic": "^20.2.3",
     "lightweight-charts": "^4.2.3",
     "rxjs": "^7.8.1",
     "tslib": "^2.6.2",
-    "zone.js": "^0.14.0"
+    "zone.js": "~0.15.0"
   },
   "devDependencies": {
-    "@angular-devkit/build-angular": "^17.3.0",
-    "@angular/cli": "^17.3.0",
-    "@angular/compiler-cli": "^17.3.0",
+    "@angular-devkit/build-angular": "^20.2.1",
+    "@angular/cli": "^20.2.1",
+    "@angular/compiler-cli": "^20.2.3",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.6.2",
-    "typescript": "~5.4.0"
+    "typescript": "~5.9.0"
   }
 }
