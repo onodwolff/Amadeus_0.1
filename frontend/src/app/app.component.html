@@ -47,7 +47,8 @@
                     <!-- Переключатель графика в правом углу шапки карточки -->
                     <button mat-icon-button aria-label="Chart mode" (click)="toggleChart()"
                             [matTooltip]="isTv() ? 'Переключить на Lightweight' : 'Переключить на TradingView'">
-                        <mat-icon>{{ isTv() ? 'candlestick_chart' : 'show_chart' }}</mat-icon>
+                        <mat-icon *ngIf="isTv()" fontSet="material-symbols-outlined">candlestick_chart</mat-icon>
+                        <mat-icon *ngIf="!isTv()">show_chart</mat-icon>
                     </button>
                 </div>
             </div>
