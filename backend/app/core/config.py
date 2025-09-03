@@ -20,6 +20,33 @@ class ShadowConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class UiConfig(BaseModel):
+    chart: str = "tv"
+    theme: str = "dark"
+    model_config = ConfigDict(extra="forbid")
+
+
+class FeaturesConfig(BaseModel):
+    risk_protections: bool = True
+    market_widget_feed: bool = True
+    model_config = ConfigDict(extra="forbid")
+
+
+class RiskConfig(BaseModel):
+    max_drawdown_pct: float = 10.0
+    dd_window_sec: int = 24 * 3600
+    stop_duration_sec: int = 12 * 3600
+    cooldown_sec: int = 30 * 60
+    min_trades_for_dd: int = 0
+    model_config = ConfigDict(extra="forbid")
+
+
+class HistoryConfig(BaseModel):
+    db_path: str = "data/history.db"
+    retention_days: int = 365
+    model_config = ConfigDict(extra="forbid")
+
+
 class ScannerScoreConfig(BaseModel):
     w_spread: float = 1.0
     w_vol: float = 0.3
@@ -74,6 +101,10 @@ class StrategyConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     api: ApiConfig = ApiConfig()
     shadow: ShadowConfig = ShadowConfig()
+    ui: UiConfig = UiConfig()
+    features: FeaturesConfig = FeaturesConfig()
+    risk: RiskConfig = RiskConfig()
+    history: HistoryConfig = HistoryConfig()
     scanner: ScannerConfig = ScannerConfig()
     strategy: StrategyConfig = StrategyConfig()
     model_config = ConfigDict(extra="forbid")

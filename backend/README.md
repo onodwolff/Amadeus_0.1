@@ -22,6 +22,28 @@ See `.env.example`. Defaults to shadow/paper mode.
 - `models/schemas.py` — Pydantic schemas
 - `services/state.py` — application state
 
+## Configuration
+Runtime options are read from `config.yaml` (see `config.example.yaml` for the full schema).
+The following sections were added:
+
+```yaml
+ui:
+  chart: tv
+  theme: dark
+features:
+  risk_protections: true
+  market_widget_feed: true
+risk:
+  max_drawdown_pct: 10.0
+  dd_window_sec: 86400
+  stop_duration_sec: 43200
+  cooldown_sec: 1800
+  min_trades_for_dd: 0
+history:
+  db_path: data/history.db
+  retention_days: 365
+```
+
 ## Endpoints
 - `POST /bot/start`
 - `POST /bot/stop`

@@ -1,0 +1,60 @@
+api:
+  paper: true
+shadow:
+  enabled: true
+  alpha: 0.85
+  latency_ms: 120
+  post_only_reject: true
+  market_slippage_bps: 1.0
+ui:
+  chart: tv
+  theme: dark
+features:
+  risk_protections: true
+  market_widget_feed: true
+risk:
+  max_drawdown_pct: 10.0
+  dd_window_sec: 86400
+  stop_duration_sec: 43200
+  cooldown_sec: 1800
+  min_trades_for_dd: 0
+history:
+  db_path: data/history.db
+  retention_days: 365
+scanner:
+  enabled: false
+  quote: USDT
+  min_price: 0.0001
+  min_vol_usdt_24h: 3000000
+  top_by_volume: 120
+  max_pairs: 60
+  min_spread_bps: 5.0
+  vol_bars: 0
+  score:
+    w_spread: 1.0
+    w_vol: 0.3
+  whitelist: []
+  blacklist: []
+strategy:
+  symbol: BNBUSDT
+  quote_size: 10.0
+  target_pct: 0.5
+  min_spread_pct: 0.0
+  cancel_timeout: 10.0
+  reorder_interval: 1.0
+  depth_level: 5
+  maker_fee_pct: 0.1
+  taker_fee_pct: 0.1
+  econ:
+    min_net_pct: 0.1
+  post_only: true
+  aggressive_take: false
+  aggressive_bps: 0.0
+  allow_short: false
+  status_poll_interval: 2.0
+  stats_interval: 30.0
+  ws_timeout: 2.0
+  bootstrap_on_idle: true
+  rest_bootstrap_interval: 3.0
+  plan_log_interval: 5.0
+  paper_cash: 1000
