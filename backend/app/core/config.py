@@ -138,7 +138,7 @@ class AppSettings(BaseSettings):
     )
 
     app_host: str = Field("0.0.0.0", alias="APP_HOST")
-    app_port: int = Field(8000, alias="APP_PORT")
+    app_port: int = Field(8100, alias="APP_PORT")
     app_reload: bool = Field(False, alias="APP_RELOAD")
     app_origins: str = Field("*", alias="APP_ORIGINS")
 
