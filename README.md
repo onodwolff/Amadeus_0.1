@@ -43,6 +43,12 @@ curl -X POST "http://localhost:8000/scanner/scan" \
 
 The request returns the best trading pair and the top candidates based on your configuration.
 
+The scanner's `min_vol_usdt_24h` and `min_spread_bps` thresholds are tuned for
+liquid mainnet markets. When using Binance testnet (`api.paper: true`) or
+trading pairs with low liquidity, lower these values; otherwise the scanner may
+reject all candidates. The backend automatically falls back to near-zero
+thresholds in paper mode, but adjust them as needed for your environment.
+
 ## Testing
 
 1. Install dependencies:
