@@ -1,14 +1,102 @@
 <div>
-    <div class="row">
-        <button mat-stroked-button color="primary" (click)="load()">Обновить</button>
-        <button mat-stroked-button color="accent" (click)="save()">Сохранить</button>
-        <button mat-stroked-button (click)="loadDefault()">Дефолт</button>
-        <button mat-stroked-button (click)="restoreBackup()">Откат</button>
-        <button mat-stroked-button (click)="clearLocal()">Очистить localStorage</button>
+  <div class="row">
+    <button mat-stroked-button color="primary" (click)="load()">Обновить</button>
+    <button mat-stroked-button color="accent" (click)="save()">Сохранить</button>
+    <button mat-stroked-button (click)="loadDefault()">Дефолт</button>
+    <button mat-stroked-button (click)="restoreBackup()">Откат</button>
+    <button mat-stroked-button (click)="clearLocal()">Очистить localStorage</button>
+  </div>
+
+  <div *ngIf="loading" class="muted" style="margin-top:8px">Загрузка…</div>
+  <div *ngIf="err" class="err" style="margin-top:8px">{{ err }}</div>
+
+  <form [formGroup]="cfgForm">
+    <div formGroupName="api">
+      <mat-card>
+        <mat-card-title>API</mat-card-title>
+        <mat-card-content>
+          <mat-slide-toggle formControlName="paper">Paper</mat-slide-toggle>
+          <mat-slide-toggle formControlName="shadow">Shadow</mat-slide-toggle>
+          <mat-slide-toggle formControlName="autostart">Autostart</mat-slide-toggle>
+        </mat-card-content>
+      </mat-card>
     </div>
 
-    <div *ngIf="loading" class="muted" style="margin-top:8px">Загрузка…</div>
-    <div *ngIf="err" class="err" style="margin-top:8px">{{ err }}</div>
+    <div formGroupName="shadow">
+      <mat-card>
+        <mat-card-title>Shadow</mat-card-title>
+        <mat-card-content>
+          <mat-form-field>
+            <mat-label>REST base</mat-label>
+            <input matInput formControlName="rest_base" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>WS base</mat-label>
+            <input matInput formControlName="ws_base" />
+          </mat-form-field>
+        </mat-card-content>
+      </mat-card>
+    </div>
 
-    <textarea class="cfg" [(ngModel)]="text" rows="26" spellcheck="false"></textarea>
+    <div formGroupName="ui">
+      <mat-card>
+        <mat-card-title>UI</mat-card-title>
+        <mat-card-content>
+          <mat-form-field>
+            <mat-label>Chart</mat-label>
+            <input matInput formControlName="chart" />
+          </mat-form-field>
+          <mat-radio-group formControlName="theme">
+            <mat-radio-button value="light">Light</mat-radio-button>
+            <mat-radio-button value="dark">Dark</mat-radio-button>
+          </mat-radio-group>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <div formGroupName="risk">
+      <mat-card>
+        <mat-card-title>Risk</mat-card-title>
+        <mat-card-content>
+          <mat-form-field>
+            <mat-label>Max drawdown %</mat-label>
+            <input matInput type="number" formControlName="max_drawdown_pct" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>DD window sec</mat-label>
+            <input matInput type="number" formControlName="dd_window_sec" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Stop duration sec</mat-label>
+            <input matInput type="number" formControlName="stop_duration_sec" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Cooldown sec</mat-label>
+            <input matInput type="number" formControlName="cooldown_sec" />
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Min trades for DD</mat-label>
+            <input matInput type="number" formControlName="min_trades_for_dd" />
+          </mat-form-field>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <div formGroupName="strategy">
+      <mat-card>
+        <mat-card-title>Strategy</mat-card-title>
+        <mat-card-content>
+          <mat-form-field>
+            <mat-label>Symbol</mat-label>
+            <input matInput formControlName="symbol" />
+          </mat-form-field>
+          <div formGroupName="market_maker">
+            <mat-slide-toggle formControlName="aggressive_take">Aggressive take</mat-slide-toggle>
+            <mat-slider formControlName="capital_usage" min="0" max="1" step="0.1" thumbLabel></mat-slider>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </form>
 </div>
+
