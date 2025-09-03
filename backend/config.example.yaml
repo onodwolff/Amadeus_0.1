@@ -1,5 +1,7 @@
 api:
   paper: true
+  shadow: false
+  autostart: false
 shadow:
   enabled: true
   alpha: 0.85

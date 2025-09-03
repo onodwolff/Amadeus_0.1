@@ -215,7 +215,7 @@ class AppState:
         shadow_cfg = (cfg.get("shadow") or {})
 
         paper = bool(api.get("paper", True))
-        shadow_en = bool(api.get("shadow", True))
+        shadow_en = bool(api.get("shadow", False))
 
         self._ensure_risk()
         self.history = HistoryStore()

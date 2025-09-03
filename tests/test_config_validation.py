@@ -19,6 +19,8 @@ def test_load_yaml_defaults(tmp_path):
     s.load_yaml()
 
     assert s.runtime_cfg["api"]["paper"] is False
+    assert s.runtime_cfg["api"]["autostart"] is False
+    assert s.runtime_cfg["api"]["shadow"] is False
     assert s.runtime_cfg["strategy"]["symbol"] == "ETHUSDT"
     assert s.runtime_cfg["ui"]["theme"] == "light"
     assert s.runtime_cfg["ui"]["chart"] == "tv"

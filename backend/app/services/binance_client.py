@@ -231,7 +231,7 @@ class BinanceAsync:
             api_key: Optional[str],
             api_secret: Optional[str],
             paper: bool = True,
-            shadow: bool = True,
+            shadow: bool = False,
             shadow_opts: Optional[Dict[str, Any]] = None,
             events_cb: Optional[Callable[[Dict[str, Any]], Any]] = None,
             state: Optional["AppState"] = None,
