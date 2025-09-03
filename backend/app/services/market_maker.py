@@ -53,6 +53,8 @@ class MarketMaker:
         self.cancel_timeout: float = float(strat.get("cancel_timeout", 10.0))
         self.post_only: bool       = bool(strat.get("post_only", True))
         self.reorder_interval: float = float(strat.get("reorder_interval", 1.0))
+        self.aggressive_take: bool = bool(strat.get("aggressive_take", False))
+        self.aggressive_bps: float = float(strat.get("aggressive_bps", 0.0))
 
         # runtime
         self.best_bid: Optional[float] = None
@@ -173,6 +175,11 @@ class MarketMaker:
         if self.best_bid is None or self.best_ask is None:
             return
 
+        strat = (self.cfg.get("strategy") or {})
+        self.aggressive_take = bool(strat.get("aggressive_take", self.aggressive_take))
+        self.aggressive_bps = float(strat.get("aggressive_bps", self.aggressive_bps))
+        self.min_spread_pct = float(strat.get("min_spread_pct", self.min_spread_pct))
+
         # симулируем исполнение открытых ордеров по лучшим ценам
         self._try_fill_by_touch()
 
@@ -196,22 +203,32 @@ class MarketMaker:
             return
         mid = 0.5 * (bid + ask)
         spread_pct = 100.0 * (ask - bid) / mid if mid > 0 else 0.0
+        threshold = max(0.001, self.min_spread_pct)
+        if self.aggressive_take and spread_pct < threshold:
+            for o in list(self.orders.values()):
+                if o.status == "NEW":
+                    self._cancel(o, reason="aggressive")
+            agg_quote = self.quote_size * max(self.aggressive_bps, 0.0) / 10000.0
+            if agg_quote > 0:
+                qty_buy = self._round_qty(agg_quote / max(ask, 1e-9))
+                qty_sell = self._round_qty(agg_quote / max(bid, 1e-9))
+                if qty_buy > 0:
+                    self._place(side="BUY", price=self._round_price(ask), qty=qty_buy)
+                if qty_sell > 0:
+                    self._place(side="SELL", price=self._round_price(bid), qty=qty_sell)
+            return
 
-        # если спред очень узкий и у нас post_only — просто приставимся к краям
-        if spread_pct < max(0.001, self.min_spread_pct):
-            px_buy = self._round_price(bid)    # лучшее bid
-            px_sell = self._round_price(ask)   # лучшее ask
+        if spread_pct < threshold:
+            px_buy = self._round_price(bid)
+            px_sell = self._round_price(ask)
         else:
-            # поставим чуть «увереннее» внутрь спреда
             offset = max(1, int((spread_pct/2.0) // 0.01)) * self._price_step
             px_buy = self._round_price(mid - offset)
             px_sell = self._round_price(mid + offset)
 
-        # размер по количеству из суммы в котируемой валюте
         qty_buy = self._round_qty(self.quote_size / max(px_buy, 1e-9))
         qty_sell = self._round_qty(self.quote_size / max(px_sell, 1e-9))
 
-        # обновим/создадим по одной лимитке с каждой стороны
         self._upsert_one(side="BUY", price=px_buy, qty=qty_buy)
         self._upsert_one(side="SELL", price=px_sell, qty=qty_sell)
 
