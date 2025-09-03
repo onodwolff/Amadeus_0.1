@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from binance import AsyncClient
 
 from ...deps import state_dep
@@ -31,6 +31,8 @@ async def scan(req: ScanRequest, state = Depends(state_dep)):
 
     try:
         data = await scan_best_symbol(cfg, client)
+    except RuntimeError:
+        raise HTTPException(status_code=404, detail="no pairs found")
     finally:
         if close_client:
             try:
