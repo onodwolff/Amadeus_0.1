@@ -25,7 +25,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
     MatExpansionModule,
   ],
   templateUrl: './config.component.html',
-  styleUrls: ['./config.component.css'],
+  styleUrls: ['./config.component.scss'],
 })
 export class ConfigComponent {
   loading = true;

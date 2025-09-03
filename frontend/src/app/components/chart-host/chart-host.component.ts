@@ -9,7 +9,7 @@ import { TvLightweightComponent } from '../tv-lightweight/tv-lightweight.compone
     standalone: true,
     imports: [CommonModule, TvAdvancedComponent, TvLightweightComponent],
     templateUrl: './chart-host.component.html',
-    styleUrls: ['./chart-host.component.css']
+    styleUrls: ['./chart-host.component.scss']
 })
 export class ChartHostComponent {
     chartType: 'tv' | 'lightweight' = 'tv';

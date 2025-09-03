@@ -10,7 +10,7 @@ import { Subscription, timer } from 'rxjs';
   standalone: true,
   imports: [CommonModule, AppMaterialModule],
   templateUrl: './controls.component.html',
-  styleUrls: ['./controls.component.css']
+  styleUrls: ['./controls.component.scss']
 })
 export class ControlsComponent implements OnDestroy {
   running = false;
