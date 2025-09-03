@@ -55,6 +55,10 @@ class MarketMakerStrategy(BaseStrategy):
         self.reorder_interval: float = float(strat.get("reorder_interval", 1.0))
         self.aggressive_take: bool = bool(strat.get("aggressive_take", False))
         self.aggressive_bps: float = float(strat.get("aggressive_bps", 0.0))
+        self.inventory_target: float = float(strat.get("inventory_target", 0.5))
+        self.inventory_tolerance: float = float(strat.get("inventory_tolerance", 0.5))
+        self.cash: float = float(strat.get("paper_cash", 0.0))
+        self.inventory_ratio: float = 0.0
 
         # runtime
         self.best_bid: Optional[float] = None
@@ -226,13 +230,24 @@ class MarketMakerStrategy(BaseStrategy):
                     self._place(side="SELL", price=self._round_price(bid), qty=qty_sell)
             return
 
+        offset = max(self._price_step, 0.5 * (ask - bid))
+        if spread_pct >= threshold:
+            offset = max(1, int((spread_pct / 2.0) // 0.01)) * self._price_step
+        px_buy = self._round_price(mid - offset)
+        px_sell = self._round_price(mid + offset)
         if spread_pct < threshold:
             px_buy = self._round_price(bid)
             px_sell = self._round_price(ask)
-        else:
-            offset = max(1, int((spread_pct/2.0) // 0.01)) * self._price_step
-            px_buy = self._round_price(mid - offset)
-            px_sell = self._round_price(mid + offset)
+
+        base_val = max(self.position, 0.0) * mid
+        total_funds = base_val + max(self.cash, 0.0)
+        self.inventory_ratio = base_val / total_funds if total_funds > 0 else 0.0
+        if self.inventory_ratio > self.inventory_target + self.inventory_tolerance:
+            px_buy = self._round_price(mid - offset * 1.5)
+            px_sell = self._round_price(mid + offset * 0.5)
+        elif self.inventory_ratio < self.inventory_target - self.inventory_tolerance:
+            px_buy = self._round_price(mid - offset * 0.5)
+            px_sell = self._round_price(mid + offset * 1.5)
 
         qty_buy = self._round_qty(self.quote_size / max(px_buy, 1e-9))
         qty_sell = self._round_qty(self.quote_size / max(px_sell, 1e-9))
@@ -356,10 +371,12 @@ class MarketMakerStrategy(BaseStrategy):
         if po.side == "BUY":
             total_cost = self.avg_entry_price * self.position + px * po.qty
             self.position += po.qty
+            self.cash -= px * po.qty
             if self.position > 0:
                 self.avg_entry_price = total_cost / self.position
         else:
             self.position -= po.qty
+            self.cash += px * po.qty
             if self.position <= 0:
                 self.position = 0.0
                 self.avg_entry_price = 0.0
