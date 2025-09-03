@@ -45,6 +45,21 @@ export interface ConfigResponse {
 
 export type ConfigGetResponse = Config | ConfigResponse;
 
+export interface PairScore {
+  symbol: string;
+  bid: number;
+  ask: number;
+  spread_bps: number;
+  vol_usdt_24h: number;
+  vol_bps_1m: number;
+  score: number;
+}
+
+export interface ScanResponse {
+  best: PairScore;
+  top: PairScore[];
+}
+
 export interface HistoryStats {
   orders: number;
   trades: number;

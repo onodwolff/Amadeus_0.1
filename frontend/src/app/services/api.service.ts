@@ -13,6 +13,7 @@ import {
   OrderHistoryItem,
   RiskStatus,
   TradeHistoryItem,
+  ScanResponse,
 } from '../models';
 
 /** Статус бота: расширен под dashboard (metrics?, cfg?) */
@@ -48,7 +49,10 @@ export class ApiService {
   stop():   Observable<unknown>   { return this.http.post(`${this.api}/bot/stop`,  {}, this.auth()); }
 
   // ----------- SCANNER ---------
-  scan(): Observable<unknown>     { return this.http.post(`${this.api}/scanner/scan`, {}, this.auth()); }
+  scan(cfg?: Config): Observable<ScanResponse> {
+    const body = cfg ? { config: cfg } : {};
+    return this.http.post<ScanResponse>(`${this.api}/scanner/scan`, body, this.auth());
+  }
 
   // ----------- CONFIG ----------
   getConfig(): Observable<ConfigGetResponse> { return this.http.get<ConfigGetResponse>(`${this.api}/config`, this.auth()); }
