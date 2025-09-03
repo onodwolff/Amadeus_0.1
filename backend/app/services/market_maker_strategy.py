@@ -7,6 +7,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, List
 
+from .base_strategy import BaseStrategy
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ class PaperOrder:
     filled_qty: float = 0.0
 
 
-class MarketMaker:
+class MarketMakerStrategy(BaseStrategy):
     """
     Мини-скальпер для shadow-песочницы:
     - подписывается на bookTicker,
@@ -39,11 +41,9 @@ class MarketMaker:
     """
 
     def __init__(self, cfg: Dict[str, Any], client_wrapper: Any, events_cb):
-        self.cfg = cfg or {}
-        self.client_wrap = client_wrapper
-        self.events_cb = events_cb
+        super().__init__(cfg or {}, client_wrapper, events_cb)
 
-        strat = (self.cfg.get("strategy") or {})
+        strat = ((self.cfg.get("strategy") or {}).get("market_maker") or {})
         self.symbol: str = str(strat.get("symbol") or "BNBUSDT").upper()
         self.loop_sleep: float = float(strat.get("loop_sleep", 0.2))
 
@@ -53,6 +53,8 @@ class MarketMaker:
         self.cancel_timeout: float = float(strat.get("cancel_timeout", 10.0))
         self.post_only: bool       = bool(strat.get("post_only", True))
         self.reorder_interval: float = float(strat.get("reorder_interval", 1.0))
+        self.aggressive_take: bool = bool(strat.get("aggressive_take", False))
+        self.aggressive_bps: float = float(strat.get("aggressive_bps", 0.0))
 
         # runtime
         self.best_bid: Optional[float] = None
@@ -73,13 +75,27 @@ class MarketMaker:
         # границы точности (на глаз, чтобы без обмена exchangeInfo)
         self._qty_step = 1e-6
         self._price_step = 1e-2  # 0.01$ для USDT-пар по умолчанию
-    # ----------------- публичный цикл -----------------
-    async def run(self):
-        self._log(f"MM start for {self.symbol} (shadow={getattr(self.client_wrap, 'shadow', False)})")
-        await asyncio.gather(
-            self._book_ticker_loop(),
-            self._mm_loop()
+
+        self._book_task: Optional[asyncio.Task] = None
+
+    # ----------------- жизненный цикл -----------------
+    async def start(self) -> None:
+        self._log(
+            f"MM start for {self.symbol} (shadow={getattr(self.client_wrap, 'shadow', False)})"
         )
+        self._book_task = asyncio.create_task(self._book_ticker_loop())
+
+    async def stop(self) -> None:
+        if self._book_task:
+            self._book_task.cancel()
+            try:
+                await self._book_task
+            except asyncio.CancelledError:
+                pass
+            self._book_task = None
+
+    async def step(self) -> None:
+        await self._step_once()
 
     # ----------------- утилиты -----------------
     def _now(self) -> float:
@@ -158,20 +174,15 @@ class MarketMaker:
             await asyncio.sleep(1.0)
             asyncio.create_task(self._book_ticker_loop())
 
-    # ----------------- основной цикл ММ -----------------
-    async def _mm_loop(self):
-        while True:
-            try:
-                await self._step_once()
-            except Exception as e:
-                self._log(f"step error: {e!s}")
-                await asyncio.sleep(0.3)
-            await asyncio.sleep(self.loop_sleep)
-
     async def _step_once(self):
         # нет котировок — нечего делать
         if self.best_bid is None or self.best_ask is None:
             return
+
+        strat = ((self.cfg.get("strategy") or {}).get("market_maker") or {})
+        self.aggressive_take = bool(strat.get("aggressive_take", self.aggressive_take))
+        self.aggressive_bps = float(strat.get("aggressive_bps", self.aggressive_bps))
+        self.min_spread_pct = float(strat.get("min_spread_pct", self.min_spread_pct))
 
         # симулируем исполнение открытых ордеров по лучшим ценам
         self._try_fill_by_touch()
@@ -196,22 +207,32 @@ class MarketMaker:
             return
         mid = 0.5 * (bid + ask)
         spread_pct = 100.0 * (ask - bid) / mid if mid > 0 else 0.0
+        threshold = max(0.001, self.min_spread_pct)
+        if self.aggressive_take and spread_pct < threshold:
+            for o in list(self.orders.values()):
+                if o.status == "NEW":
+                    self._cancel(o, reason="aggressive")
+            agg_quote = self.quote_size * max(self.aggressive_bps, 0.0) / 10000.0
+            if agg_quote > 0:
+                qty_buy = self._round_qty(agg_quote / max(ask, 1e-9))
+                qty_sell = self._round_qty(agg_quote / max(bid, 1e-9))
+                if qty_buy > 0:
+                    self._place(side="BUY", price=self._round_price(ask), qty=qty_buy)
+                if qty_sell > 0:
+                    self._place(side="SELL", price=self._round_price(bid), qty=qty_sell)
+            return
 
-        # если спред очень узкий и у нас post_only — просто приставимся к краям
-        if spread_pct < max(0.001, self.min_spread_pct):
-            px_buy = self._round_price(bid)    # лучшее bid
-            px_sell = self._round_price(ask)   # лучшее ask
+        if spread_pct < threshold:
+            px_buy = self._round_price(bid)
+            px_sell = self._round_price(ask)
         else:
-            # поставим чуть «увереннее» внутрь спреда
             offset = max(1, int((spread_pct/2.0) // 0.01)) * self._price_step
             px_buy = self._round_price(mid - offset)
             px_sell = self._round_price(mid + offset)
 
-        # размер по количеству из суммы в котируемой валюте
         qty_buy = self._round_qty(self.quote_size / max(px_buy, 1e-9))
         qty_sell = self._round_qty(self.quote_size / max(px_sell, 1e-9))
 
-        # обновим/создадим по одной лимитке с каждой стороны
         self._upsert_one(side="BUY", price=px_buy, qty=qty_buy)
         self._upsert_one(side="SELL", price=px_sell, qty=qty_sell)
 
