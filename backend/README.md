@@ -1,8 +1,11 @@
 # Amadeus Backend (FastAPI)
 
+Requires **Python 3.12+**. Key libraries include FastAPI 0.116+, Uvicorn 0.35+, and
+Pydantic 2.11+.
+
 ## Run
 ```bash
-python -m venv .venv && . .venv/bin/activate
+python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```

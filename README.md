@@ -2,6 +2,9 @@
 
 This project provides a FastAPI backend and an Angular frontend for the Amadeus trading bot.
 
+The backend targets **Python 3.12+** and depends on FastAPI 0.116+, Uvicorn 0.35+, and
+Pydantic 2.11+.
+
 > **Note**: building the frontend requires **Node.js 20+**.
 
 ## Authentication
@@ -53,8 +56,9 @@ thresholds in paper mode, but adjust them as needed for your environment.
 
 ## Testing
 
-1. Install dependencies:
+1. Create a Python 3.12 virtual environment and install dependencies:
    ```bash
+   python3.12 -m venv .venv && source .venv/bin/activate
    pip install -r backend/requirements.txt
    ```
 2. Run the test suite:
