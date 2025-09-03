@@ -1,18 +1,18 @@
 from __future__ import annotations
+
 import asyncio
-import json
 import logging
 import time
 import traceback
-from dataclasses import asdict, is_dataclass
-from typing import Any, Dict, Optional, Set
-from collections.abc import Mapping
+from typing import Any, Dict, Optional
 
-import yaml
 import httpx  # ⬅️ REST-fallback для маркет-потока
 
 from ..core.config import settings
 from ..models.schemas import BotStatus
+from .configuration import ConfigService
+from .events import EventDispatcher
+from .ws import WSBroadcaster
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,13 @@ class AppState:
     """
 
     def __init__(self) -> None:
-        self.cfg: Dict[str, Any] = self._coerce_cfg(getattr(settings, "runtime_cfg", None))
+        self.config_service = ConfigService(getattr(settings, "runtime_cfg", None))
+        self.cfg: Dict[str, Any] = self.config_service.cfg
 
         # внешние сервисы/модули (лениво создаются при старте бота)
-        self.binance = None   # type: ignore
+        self.binance = None  # type: ignore
         self.strategy = None  # type: ignore
-        self.history = None   # type: ignore
+        self.history = None  # type: ignore
 
         # риск
         self.risk_manager = None  # type: ignore
@@ -38,10 +39,9 @@ class AppState:
         self._task: Optional[asyncio.Task] = None
         self._market_task: Optional[asyncio.Task] = None
 
-        # WS клиенты — кладём ровно те очереди, которые слушает /ws
-        self._clients: Set[asyncio.Queue[str]] = set()
-        self._sent_counter = 0
-        self._sent_last_ts = time.time()
+        # сервисы
+        self.ws = WSBroadcaster()
+        self.events = EventDispatcher(self)
 
         # метрики/эквити
         self.equity: Optional[float] = None
@@ -49,33 +49,18 @@ class AppState:
         # флаг чтобы не дёргать panic_sell повторно
         self._panic_triggered = False
 
-        logger.info("Loaded cfg type=%s keys=%s", type(self.cfg).__name__, list(self.cfg.keys())[:8])
+        logger.info(
+            "Loaded cfg type=%s keys=%s",
+            type(self.cfg).__name__,
+            list(self.cfg.keys())[:8],
+        )
 
     # --------------- Config helpers ---------------
-    @staticmethod
-    def _coerce_cfg(raw: Any) -> Dict[str, Any]:
-        if raw is None:
-            return {}
-        if isinstance(raw, dict):
-            return raw
-        if isinstance(raw, Mapping):
-            return dict(raw)
-        if isinstance(raw, str):
-            try:
-                data = yaml.safe_load(raw) or {}
-                if isinstance(data, dict):
-                    return data
-                return {"_raw": raw, "_parsed": data}
-            except Exception as e:
-                logger.warning("cfg safe_load failed: %s", e)
-                return {"_raw": raw}
-        return {}
-
     def set_cfg(self, new_cfg: Any) -> None:
-        self.cfg = self._coerce_cfg(new_cfg)
-        logger.info("Config updated. keys=%s", list(self.cfg.keys())[:8])
+        self.cfg = self.config_service.set_cfg(new_cfg)
         if self.risk_manager is not None:
             from .risk.manager import RiskManager
+
             self.risk_manager = RiskManager(self.cfg or {})
         # уведомим UI о новом статусе/символе
         try:
@@ -203,74 +188,23 @@ class AppState:
     # --------------- WS helpers ---------------
     def register_ws(self) -> asyncio.Queue[str]:
         """Старая механика (оставлена для совместимости)."""
-        q: asyncio.Queue[str] = asyncio.Queue(maxsize=1000)
-        self._clients.add(q)
-        logger.info("WS connected. total=%d", len(self._clients))
-        return q
+        return self.ws.register_ws()
 
     def unregister_ws(self, q: asyncio.Queue[str]) -> None:
-        self._clients.discard(q)
-        logger.info("WS disconnected. total=%d", len(self._clients))
+        self.ws.unregister_ws(q)
 
     def ws_subscribe(self, q: asyncio.Queue) -> callable:
-        """
-        Правильная интеграция с /ws: используем ИМЕННО переданную очередь q.
-        """
-        self._clients.add(q)  # type: ignore
-        logger.info("WS connected (ext). total=%d", len(self._clients))
-
-        def _unsub():
-            try:
-                self._clients.discard(q)  # type: ignore
-                logger.info("WS disconnected (ext). total=%d", len(self._clients))
-            except Exception:
-                logger.exception("Failed to disconnect websocket client")
-        return _unsub
+        """Правильная интеграция с /ws: используем ИМЕННО переданную очередь q."""
+        return self.ws.ws_subscribe(q)
 
     def _broadcast_obj(self, obj: Any) -> None:
-        try:
-            if isinstance(obj, dict):
-                data = json.dumps(obj, ensure_ascii=False)
-            elif isinstance(obj, str):
-                data = obj
-            else:
-                if hasattr(obj, "model_dump"):
-                    data = json.dumps(obj.model_dump(), ensure_ascii=False)
-                elif hasattr(obj, "dict"):
-                    data = json.dumps(obj.dict(), ensure_ascii=False)
-                elif is_dataclass(obj):
-                    data = json.dumps(asdict(obj), ensure_ascii=False)
-                elif isinstance(obj, Mapping):
-                    data = json.dumps(dict(obj), ensure_ascii=False)
-                else:
-                    data = str(obj)
-        except Exception:
-            logger.exception("Failed to serialize broadcast obj, sending as text")
-            data = str(obj)
-
-        for q in list(self._clients):
-            try:
-                q.put_nowait(data)
-                self._sent_counter += 1
-            except asyncio.QueueFull:
-                self._clients.discard(q)
+        self.ws._broadcast_obj(obj)
 
     def broadcast(self, type_: str, **payload: Any) -> None:
-        self._broadcast_obj({"type": type_, **payload})
+        self.ws.broadcast(type_, **payload)
 
     def broadcast_status(self) -> None:
-        m = self.status()
-        try:
-            payload = m.model_dump()  # pydantic v2
-        except Exception:
-            payload = {
-                "running": m.running,
-                "symbol": m.symbol,
-                "metrics": m.metrics,
-                "cfg": m.cfg,
-            }
-        payload["type"] = "status"
-        self._broadcast_obj(payload)
+        self.ws.broadcast_status(self.status())
 
     # --------------- Risk hooks ---------------
     def _ensure_risk(self):
@@ -427,7 +361,7 @@ class AppState:
         stats_interval = 1.0
         last_stats = time.time()
 
-        self.broadcast("stats", ws_clients=len(self._clients), ws_rate=0.0)
+        self.broadcast("stats", ws_clients=len(self.ws.clients), ws_rate=0.0)
 
         try:
             while True:
@@ -450,12 +384,12 @@ class AppState:
 
                 now = time.time()
                 if now - last_stats >= stats_interval:
-                    elapsed = now - self._sent_last_ts
-                    rate = (self._sent_counter / elapsed) if elapsed > 0 else 0.0
-                    self._sent_counter = 0
-                    self._sent_last_ts = now
+                    elapsed = now - self.ws.sent_last_ts
+                    rate = (self.ws.sent_counter / elapsed) if elapsed > 0 else 0.0
+                    self.ws.sent_counter = 0
+                    self.ws.sent_last_ts = now
                     last_stats = now
-                    self.broadcast("stats", ws_clients=len(self._clients), ws_rate=round(rate, 2))
+                    self.broadcast("stats", ws_clients=len(self.ws.clients), ws_rate=round(rate, 2))
 
                 await asyncio.sleep(loop_sleep)
         finally:
@@ -541,113 +475,10 @@ class AppState:
                     await asyncio.sleep(1.5)
 
     async def on_event(self, evt: Any) -> None:
-        try:
-            if isinstance(evt, str):
-                try:
-                    parsed = json.loads(evt)
-                    if isinstance(parsed, dict):
-                        evt = parsed
-                    else:
-                        self.broadcast("diag", text=str(evt))
-                        return
-                except Exception:
-                    self.broadcast("diag", text=str(evt))
-                    return
-            elif not isinstance(evt, dict):
-                try:
-                    if hasattr(evt, "model_dump"):
-                        evt = evt.model_dump()
-                    elif hasattr(evt, "dict"):
-                        evt = evt.dict()
-                    elif is_dataclass(evt):
-                        evt = asdict(evt)
-                    elif isinstance(evt, Mapping):
-                        evt = dict(evt)
-                    else:
-                        self.broadcast("diag", text=str(evt))
-                        return
-                except Exception:
-                    self.broadcast("diag", text=str(evt))
-                    return
-
-            # equity → RiskManager
-            try:
-                t_tmp = evt.get("type")
-                eq_val = evt.get("equity", None)
-                if t_tmp == "equity" and eq_val is None:
-                    eq_val = evt.get("value", None)
-                if eq_val is not None:
-                    self.on_equity(float(eq_val))
-            except Exception:
-                logger.exception("Failed to handle equity value from event")
-
-            t = evt.get("type")
-
-            # история
-            try:
-                if t == "order_event" and getattr(self, "history", None):
-                    await self.history.log_order_event(evt)
-                elif t in {"trade", "fill"} and getattr(self, "history", None):
-                    await self.history.log_trade(evt)
-                    pnl = float(evt.get("pnl") or 0.0) if isinstance(evt.get("pnl"), (int, float, str)) else 0.0
-                    self.on_trade_closed(pair=str(evt.get("symbol") or ""), pnl=pnl)
-            except Exception:
-                logger.exception("history log failed")
-
-            # прямая трансляция + статус
-            if t in {"market", "bank", "trade", "fill", "order_event", "stats", "diag", "plan", "status"}:
-                self._broadcast_obj(evt)
-                return
-
-            # «сырой» бинанс → market
-            if not t and "e" in evt and "s" in evt:
-                etype = str(evt.get("e"))
-                s = str(evt.get("s"))
-                ts = evt.get("E") or int(time.time() * 1000)
-                if etype == "bookTicker" and ("b" in evt or "a" in evt):
-                    self.broadcast("market", symbol=s, bestBid=evt.get("b"), bestAsk=evt.get("a"), ts=ts)
-                    return
-                if etype in ("24hrTicker", "24hrMiniTicker"):
-                    self.broadcast("market", symbol=s, lastPrice=evt.get("c"), ts=ts)
-                    return
-                if etype in ("trade", "aggTrade"):
-                    self.broadcast("market", symbol=s, lastPrice=evt.get("p"), ts=ts)
-                    return
-                if etype == "depthUpdate" and (isinstance(evt.get("b"), list) or isinstance(evt.get("a"), list)):
-                    try:
-                        b0 = evt.get("b")[0][0] if evt.get("b") else None
-                    except Exception:
-                        b0 = None
-                    try:
-                        a0 = evt.get("a")[0][0] if evt.get("a") else None
-                    except Exception:
-                        a0 = None
-                    self.broadcast("market", symbol=s, bestBid=b0, bestAsk=a0, ts=ts)
-                    return
-
-            if not t:
-                self.broadcast("diag", text=json.dumps(evt, ensure_ascii=False))
-                return
-
-            # прочее
-            if t in {"ticker", "book", "depth"}:
-                self.broadcast("market", **{k: v for k, v in evt.items() if k != "type"})
-            elif t in {"balance", "pnl", "equity"}:
-                self.broadcast("bank", **{k: v for k, v in evt.items() if k != "type"})
-            elif t in {"log", "debug"}:
-                self.broadcast("diag", text=str(evt.get("msg") or evt.get("text") or ""))
-            else:
-                self._broadcast_obj(evt)
-
-        except Exception:
-            logger.exception("on_event failed")
-            try:
-                self.broadcast("diag", text="on_event: internal exception")
-            except Exception:
-                logger.exception("Failed to broadcast on_event failure")
+        await self.events.dispatch(evt)
 
     def status(self) -> BotStatus:
-        m: Dict[str, Any] = {"ws_clients": len(self._clients)}
+        m: Dict[str, Any] = {"ws_clients": len(self.ws.clients)}
         if self.strategy is not None:
             for key in (
                 "ticks_total",
