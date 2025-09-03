@@ -11,7 +11,7 @@ import { Config, ConfigGetResponse, ConfigResponse, PairScore, ScanResponse } fr
     standalone: true,
     imports: [CommonModule, FormsModule, AppMaterialModule],
     templateUrl: './scanner.component.html',
-    styleUrls: ['./scanner.component.css']
+    styleUrls: ['./scanner.component.scss']
 })
 export class ScannerComponent {
     cfg: any = {

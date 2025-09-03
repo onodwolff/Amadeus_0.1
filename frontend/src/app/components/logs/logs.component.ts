@@ -14,7 +14,7 @@ interface LogRow {
     standalone: true,
     imports: [CommonModule, AppMaterialModule],
     templateUrl: './logs.component.html',
-    styleUrls: ['./logs.component.css']
+    styleUrls: ['./logs.component.scss']
 })
 export class LogsComponent {
     @ViewChild('pane') pane?: ElementRef<HTMLDivElement>;

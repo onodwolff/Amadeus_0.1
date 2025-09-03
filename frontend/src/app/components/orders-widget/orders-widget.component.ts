@@ -17,7 +17,7 @@ interface LiveOrder {
     standalone: true,
     imports: [CommonModule, AppMaterialModule],
     templateUrl: './orders-widget.component.html',
-    styleUrls: ['./orders-widget.component.css']
+    styleUrls: ['./orders-widget.component.scss']
 })
 export class OrdersWidgetComponent {
     // полный поток без лимита (с удержанием разумного окна)

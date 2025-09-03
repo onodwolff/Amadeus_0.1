@@ -10,7 +10,7 @@ import { createChart, ColorType } from 'lightweight-charts';
     standalone: true,
     imports: [CommonModule],
     templateUrl: './equity-sparkline.component.html',
-    styleUrls: ['./equity-sparkline.component.css']
+    styleUrls: ['./equity-sparkline.component.scss']
 })
 export class EquitySparklineComponent implements OnInit, OnDestroy {
     private id = 'eq-' + Math.random().toString(36).slice(2);

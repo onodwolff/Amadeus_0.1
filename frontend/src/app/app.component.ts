@@ -56,7 +56,7 @@ interface DbRow { event: string; symbol: string; side: string; type: string; pri
     RiskWidgetComponent
   ],
   templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
+  styleUrls: ['./app.component.scss']
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Amadeus';

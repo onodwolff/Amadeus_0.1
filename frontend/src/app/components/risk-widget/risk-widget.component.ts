@@ -9,7 +9,7 @@ import { RiskStatus } from '../../models';
     standalone: true,
     imports: [CommonModule, AppMaterialModule],
     templateUrl: './risk-widget.component.html',
-    styleUrls: ['./risk-widget.component.css']
+    styleUrls: ['./risk-widget.component.scss']
 })
 export class RiskWidgetComponent {
     loading = true;

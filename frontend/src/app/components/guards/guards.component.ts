@@ -8,7 +8,7 @@ import { ApiService } from '../../services/api.service';
     standalone: true,
     imports: [CommonModule, AppMaterialModule],
     templateUrl: './guards.component.html',
-    styleUrls: ['./guards.component.css']
+    styleUrls: ['./guards.component.scss']
 })
 export class GuardsComponent {
     data: any = null;

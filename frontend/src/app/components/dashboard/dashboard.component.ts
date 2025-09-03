@@ -16,7 +16,7 @@ interface MarketSnap { symbol?: string; bid?: number; ask?: number; last?: numbe
   standalone: true,
   imports: [CommonModule, AppMaterialModule, EquitySparklineComponent], // ⬅️ добавить в imports
   templateUrl: './dashboard.component.html',
-  styleUrls: ['./dashboard.component.css']
+  styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnDestroy {
   running = false;

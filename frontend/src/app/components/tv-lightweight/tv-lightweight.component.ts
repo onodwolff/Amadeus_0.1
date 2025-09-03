@@ -10,7 +10,7 @@ import { firstValueFrom } from 'rxjs';
     standalone: true,
     imports: [CommonModule],
     templateUrl: './tv-lightweight.component.html',
-    styleUrls: ['./tv-lightweight.component.css']
+    styleUrls: ['./tv-lightweight.component.scss']
 })
 export class TvLightweightComponent implements OnInit, OnDestroy {
     private containerId = 'lwch-' + Math.random().toString(36).slice(2);

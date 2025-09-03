@@ -13,7 +13,7 @@ declare global {
     standalone: true,
     imports: [CommonModule],
     templateUrl: './tv-advanced.component.html',
-    styleUrls: ['./tv-advanced.component.css']
+    styleUrls: ['./tv-advanced.component.scss']
 })
 export class TvAdvancedComponent {
     containerId = 'tvw-' + Math.random().toString(36).slice(2);
