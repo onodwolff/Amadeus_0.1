@@ -1,17 +1,49 @@
-:root {
-  --bg: #0e0f14;
-  --card: #151823;
-  --accent: #7c4dff;
-  --ok: #00e676;
-  --warn: #ffc400;
-  --bad: #ff5252;
+@use 'variables' as v;
+@use 'mixins' as m;
+
+html, body {
+  height: 100%;
+  background: v.$color-bg;
+  color: #e6e6f0;
 }
-html, body { height: 100%; background: var(--bg); color: #e6e6f0; }
-body { margin: 0; font-family: Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
-.card { background: var(--card); border-radius: 16px; padding: 16px; box-shadow: 0 6px 30px rgba(0,0,0,.3); }
-.badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #263238; }
-.grid { display: grid; gap: 12px; }
+
+body {
+  margin: 0;
+  @include m.font(base);
+}
+
+.card {
+  background: v.$color-card;
+  border-radius: v.$space-lg;
+  @include m.spacing(padding, lg);
+  box-shadow: 0 6px 30px rgba(0, 0, 0, .3);
+}
+
+.badge {
+  padding: v.$space-xs v.$space-sm;
+  border-radius: 999px;
+  background: #263238;
+  @include m.font(sm, 400);
+}
+
+.grid {
+  display: grid;
+  gap: v.$space-md;
+}
+
 .grid-2 { grid-template-columns: 1fr 1fr; }
 .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-h1,h2,h3 { margin: 8px 0; }
-button.mat-mdc-button-base { border-radius: 12px!important; }
+
+h1, h2, h3 {
+  margin: v.$space-sm 0;
+  @include m.font(lg, 700);
+}
+
+button.mat-mdc-button-base {
+  border-radius: v.$space-lg!important;
+}
+
+.material-icons,
+.material-symbols-outlined {
+  @include m.icon;
+}
