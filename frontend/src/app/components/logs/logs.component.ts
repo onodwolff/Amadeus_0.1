@@ -61,8 +61,10 @@ export class LogsComponent {
                 text = text || JSON.stringify(evt);
         }
 
-        this.rows.push({ ts: t, type, text });
-        if (this.rows.length > this.maxRows) this.rows.splice(0, this.rows.length - this.maxRows);
+        // Add newest entries to the beginning so they're shown at the top
+        this.rows.unshift({ ts: t, type, text });
+        // Trim array when exceeding maxRows by removing items from the end
+        if (this.rows.length > this.maxRows) this.rows.splice(this.maxRows);
     }
 
     clear() { this.rows = []; }
