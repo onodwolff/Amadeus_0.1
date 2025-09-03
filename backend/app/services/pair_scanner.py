@@ -2,8 +2,21 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-from binance import AsyncClient
+from typing import List, Dict, Any, Optional, Protocol
+
+
+class BinanceClientProtocol(Protocol):
+    async def get_exchange_info(self) -> Dict[str, Any]:
+        ...
+
+    async def get_ticker(self, symbol: str) -> Dict[str, Any]:
+        ...
+
+    async def get_orderbook_ticker(self, symbol: str) -> Dict[str, Any]:
+        ...
+
+    async def get_klines(self, symbol: str, interval: str, limit: int) -> List[Any]:
+        ...
 
 log = logging.getLogger(__name__)
 
@@ -20,21 +33,21 @@ class PairScore:
 def _bps(x: float) -> float:
     return x * 10_000.0
 
-async def _get_24h(client: AsyncClient, symbol: str) -> Optional[Dict[str, Any]]:
+async def _get_24h(client: BinanceClientProtocol, symbol: str) -> Optional[Dict[str, Any]]:
     try:
         return await client.get_ticker(symbol=symbol)
     except Exception as e:
         log.debug("24h fail %s: %s", symbol, e)
         return None
 
-async def _get_book(client: AsyncClient, symbol: str) -> Optional[Dict[str, Any]]:
+async def _get_book(client: BinanceClientProtocol, symbol: str) -> Optional[Dict[str, Any]]:
     try:
         return await client.get_orderbook_ticker(symbol=symbol)
     except Exception as e:
         log.debug("bookTicker fail %s: %s", symbol, e)
         return None
 
-async def _get_klines_vol_bps(client: AsyncClient, symbol: str, bars: int) -> float:
+async def _get_klines_vol_bps(client: BinanceClientProtocol, symbol: str, bars: int) -> float:
     if bars <= 1:
         return 0.0
     try:
@@ -62,7 +75,7 @@ async def _gather_limited(coros, limit: int = 20):
             return await coro
     return await asyncio.gather(*[wrap(c) for c in coros], return_exceptions=True)
 
-async def _scan_impl(cfg: Dict[str, Any], client: AsyncClient) -> Dict[str, Any]:
+async def _scan_impl(cfg: Dict[str, Any], client: BinanceClientProtocol) -> Dict[str, Any]:
     sc = cfg.get("scanner", {})
     quote = sc.get("quote", "USDT")
     min_price = float(sc.get("min_price", 0.0001))
@@ -155,11 +168,12 @@ async def _scan_impl(cfg: Dict[str, Any], client: AsyncClient) -> Dict[str, Any]
     top_list = [x.__dict__ for x in scored[:10]]
     return {"best": best.__dict__, "top": top_list}
 
-async def scan_best_symbol(cfg: Dict[str, Any], client: AsyncClient) -> Dict[str, Any]:
+async def scan_best_symbol(cfg: Dict[str, Any], client: BinanceClientProtocol) -> Dict[str, Any]:
     return await _scan_impl(cfg, client)
 
 class PairScanner:
-    def __init__(self, cfg: Dict[str, Any], client: AsyncClient):
+    def __init__(self, cfg: Dict[str, Any], client: BinanceClientProtocol):
         self.cfg = cfg; self.client = client
+
     async def pick_best(self) -> Dict[str, Any]:
         return await _scan_impl(self.cfg, self.client)

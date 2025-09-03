@@ -172,6 +172,27 @@ class BinanceRestClient:
         except Exception:
             logger.exception("Failed to close httpx.AsyncClient")
 
+    async def get_exchange_info(self) -> Dict[str, Any]:
+        r = await self._client.get("/v3/exchangeInfo")
+        r.raise_for_status()
+        return r.json()
+
+    async def get_ticker(self, symbol: str) -> Dict[str, Any]:
+        r = await self._client.get("/v3/ticker/24hr", params={"symbol": symbol.upper()})
+        r.raise_for_status()
+        return r.json()
+
+    async def get_orderbook_ticker(self, symbol: str) -> Dict[str, Any]:
+        r = await self._client.get("/v3/ticker/bookTicker", params={"symbol": symbol.upper()})
+        r.raise_for_status()
+        return r.json()
+
+    async def get_klines(self, symbol: str, interval: str, limit: int) -> List[Any]:
+        params = {"symbol": symbol.upper(), "interval": interval, "limit": limit}
+        r = await self._client.get("/v3/klines", params=params)
+        r.raise_for_status()
+        return r.json()
+
     async def get_symbol_info(self, symbol: str) -> Dict[str, Any]:
         # /api/v3/exchangeInfo?symbol=BTCUSDT — Spot/Testnet одинаковы по схеме. :contentReference[oaicite:6]{index=6}
         r = await self._client.get("/v3/exchangeInfo", params={"symbol": symbol.upper()})
