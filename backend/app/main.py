@@ -81,7 +81,7 @@ async def on_startup():
     if autostart:
         log.warning("autostart=true — запускаю бота по конфигу…")
         try:
-            await state.start()
+            await state.start_bot()
             log.info("Бот запущен (autostart).")
         except Exception as e:
             log.exception("Не удалось автозапустить бота: %s", e)
@@ -90,8 +90,8 @@ async def on_startup():
 async def on_shutdown():
     state = get_state()
     try:
-        if getattr(state, "running", False):
-            await state.stop()
+        if state.is_running():
+            await state.stop_bot()
             log.info("Бот остановлен на shutdown.")
     except Exception:
         log.exception("Ошибка остановки бота на shutdown")
