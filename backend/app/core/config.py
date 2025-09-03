@@ -191,4 +191,3 @@ class AppSettings(BaseSettings):
 
 
 settings = AppSettings()
-settings.load_yaml()
