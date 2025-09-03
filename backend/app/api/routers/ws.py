@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from typing import Any, Callable, Optional
 import logging
 
@@ -86,7 +87,7 @@ def _subscribe(state: Any) -> tuple[asyncio.Queue, Callable[[], None]]:
 async def ws_stream(ws: WebSocket):
     """Стрим событий в UI. Устойчив к отключениям и shutdown."""
     token = ws.query_params.get("token")
-    if token != settings.api_token:
+    if not token or not secrets.compare_digest(token, settings.api_token or ""):
         await ws.close(code=1008, reason="Invalid token")
         return
 
