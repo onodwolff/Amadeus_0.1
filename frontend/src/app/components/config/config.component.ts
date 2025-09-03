@@ -48,6 +48,31 @@ export class ConfigComponent {
     symbol: 'Торговый инструмент',
     aggressive_take: 'Агрессивно забирать лучшие цены',
     capital_usage: 'Доля капитала в сделке',
+    shadow_enabled: 'Включает теневой режим',
+    shadow_alpha: 'Коэффициент объёма теневых сделок',
+    shadow_latency_ms: 'Дополнительная задержка в миллисекундах',
+    shadow_post_only_reject: 'Отклонять не post-only ордера',
+    shadow_market_slippage_bps: 'Проскальзывание рынка в б.п.',
+    features_risk_protections: 'Включить защиту от рисков',
+    features_market_widget_feed: 'Поток данных для виджета рынка',
+    history_db_path: 'Путь к базе истории',
+    history_retention_days: 'Дни хранения истории',
+    scanner_enabled: 'Активировать сканер',
+    scanner_quote: 'Базовая валюта',
+    scanner_min_price: 'Минимальная цена',
+    scanner_min_vol_usdt_24h: 'Минимальный объём USDT за 24ч',
+    scanner_top_by_volume: 'Пары по объёму',
+    scanner_max_pairs: 'Максимум пар',
+    scanner_min_spread_bps: 'Минимальный спред в б.п.',
+    scanner_vol_bars: 'Количество баров объёма',
+    scanner_w_spread: 'Вес спреда',
+    scanner_w_vol: 'Вес объёма',
+    scanner_whitelist: 'Разрешённые пары',
+    scanner_blacklist: 'Запрещённые пары',
+    strategy_name: 'Название стратегии',
+    mm_quote_size: 'Размер заявки',
+    mm_min_spread_pct: 'Минимальный спред в %',
+    mm_post_only: 'Только постовые ордера',
   };
 
   constructor(
@@ -147,9 +172,8 @@ export class ConfigComponent {
   load() {
     this.loading = true;
     this.err = '';
-    const isConfigResp = (
-      r: ConfigGetResponse
-    ): r is ConfigResponse => (r as ConfigResponse).cfg !== undefined;
+    const isConfigResp = (r: ConfigGetResponse): r is ConfigResponse =>
+      (r as ConfigResponse).cfg !== undefined;
     this.api.getConfig().subscribe({
       next: (res: ConfigGetResponse) => {
         const cfg: Config = isConfigResp(res) ? res.cfg : res;
