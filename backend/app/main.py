@@ -66,10 +66,11 @@ async def on_startup():
     """
     state = get_state()
     state.cfg = settings.runtime_cfg or {}
-    log.info("Config синхронизирован: ui.chart=%s, api.paper=%s, api.shadow=%s",
+    log.info("Config синхронизирован: ui.chart=%s, api.paper=%s, api.shadow=%s, api.autostart=%s",
              state.cfg.get("ui", {}).get("chart"),
              state.cfg.get("api", {}).get("paper"),
-             state.cfg.get("api", {}).get("shadow"))
+             state.cfg.get("api", {}).get("shadow"),
+             state.cfg.get("api", {}).get("autostart"))
 
     # НЕ автозапуск по умолчанию
     autostart = bool(state.cfg.get("api", {}).get("autostart", False))

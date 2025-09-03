@@ -8,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class ApiConfig(BaseModel):
     paper: bool = True
+    autostart: bool = False
+    shadow: bool = False
     model_config = ConfigDict(extra="forbid")
 
 

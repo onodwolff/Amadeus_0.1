@@ -27,6 +27,10 @@ Runtime options are read from `config.yaml` (see `config.example.yaml` for the f
 The following sections were added:
 
 ```yaml
+api:
+  paper: true
+  shadow: false
+  autostart: false
 ui:
   chart: tv
   theme: dark
