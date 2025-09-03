@@ -47,6 +47,10 @@ export class ApiService {
   status(): Observable<BotStatus> { return this.http.get<BotStatus>(`${this.api}/bot/status`, this.auth()); }
   start():  Observable<unknown>   { return this.http.post(`${this.api}/bot/start`, {}, this.auth()); }
   stop():   Observable<unknown>   { return this.http.post(`${this.api}/bot/stop`,  {}, this.auth()); }
+  cmd(command: string, save = false): Observable<BotStatus> {
+    const q = save ? '?save=1' : '';
+    return this.http.post<BotStatus>(`${this.api}/bot/cmd/${command}${q}`, {}, this.auth());
+  }
 
   // ----------- SCANNER ---------
   scan(cfg?: Config): Observable<ScanResponse> {

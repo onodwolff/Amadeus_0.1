@@ -18,3 +18,9 @@ async def stop_bot(state = Depends(state_dep)):
 @router.get("/status", response_model=BotStatus)
 async def get_status(state = Depends(state_dep)):
     return state.status()
+
+
+@router.post("/cmd/{cmd}", response_model=BotStatus)
+async def handle_cmd(cmd: str, save: bool = False, state = Depends(state_dep)):
+    await state.handle_cmd(cmd, save=save)
+    return state.status()

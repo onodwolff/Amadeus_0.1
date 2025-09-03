@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -20,6 +20,7 @@ import {
   OrderHistoryItem,
   RiskStatus,
   TradeHistoryItem,
+  BotStatus,
 } from './models';
 
 // Компоненты
@@ -156,6 +157,55 @@ export class AppComponent implements OnInit, OnDestroy {
   closeOverlays() { this.showConfig = false; this.showHistory = false; this.showScanner = false; }
 
   setHistTab(tab: 'live'|'db') { this.histTab = tab; if (tab === 'db') this.loadDbHistory(); }
+
+  @HostListener('window:keydown', ['$event'])
+  handleKey(event: KeyboardEvent) {
+    const tag = (event.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (event.key === 'p') this.togglePaper();
+    else if (event.key === 'a') this.toggleAggressive();
+    else if (event.key === 's') this.toggleQuotes();
+  }
+
+  togglePaper() {
+    const save = window.confirm('Сохранить новое значение paper в config.yaml?');
+    this.api.cmd('p', save).subscribe({
+      next: (res: BotStatus) => {
+        this.cfg = res.cfg || this.cfg;
+        this.api.setRunning(!!res.running);
+        this.snack.open(`Paper mode: ${this.cfg.api?.paper ? 'ON' : 'OFF'}`, 'OK', { duration: 2000 });
+      },
+      error: err => {
+        this.snack.open(`Ошибка: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 });
+      }
+    });
+  }
+
+  toggleAggressive() {
+    const save = window.confirm('Сохранить aggressive_take в config.yaml?');
+    this.api.cmd('a', save).subscribe({
+      next: (res: BotStatus) => {
+        this.cfg = res.cfg || this.cfg;
+        const on = this.cfg?.strategy?.market_maker?.aggressive_take;
+        this.snack.open(`Aggressive take: ${on ? 'ON' : 'OFF'}`, 'OK', { duration: 2000 });
+      },
+      error: err => {
+        this.snack.open(`Ошибка: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 });
+      }
+    });
+  }
+
+  toggleQuotes() {
+    this.api.cmd('s').subscribe({
+      next: (res: BotStatus) => {
+        this.api.setRunning(!!res.running);
+        this.snack.open(res.running ? 'Старт' : 'Стоп', 'OK', { duration: 1200 });
+      },
+      error: err => {
+        this.snack.open(`Ошибка: ${err?.error?.error || err?.message || 'unknown'}`, 'OK', { duration: 2500 });
+      }
+    });
+  }
 
   // DB history — лимиты ↓ 100
   private boolToSide(v: unknown): string {

@@ -33,6 +33,10 @@ export interface Config {
   };
   strategy?: {
     symbol?: string;
+    market_maker?: {
+      aggressive_take?: boolean;
+      [key: string]: unknown;
+    };
     [key: string]: unknown;
   };
   [key: string]: unknown;
