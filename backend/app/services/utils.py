@@ -1,6 +1,8 @@
 from decimal import Decimal, ROUND_DOWN, ROUND_UP
 
 def round_step(value: float, step: float, precision: int = 8) -> float:
+    if step == 0:
+        return float(value)
     v = Decimal(str(value)); s = Decimal(str(step))
     q = (v // s) * s
     return float(q.quantize(Decimal(10) ** -precision, rounding=ROUND_DOWN))
