@@ -8,6 +8,7 @@ import { Config, ConfigGetResponse, ConfigResponse } from '../../models';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
   selector: 'app-config',
@@ -19,6 +20,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
     MatRadioModule,
     MatSliderModule,
     MatFormFieldModule,
+    MatTooltipModule,
   ],
   templateUrl: './config.component.html',
   styleUrls: ['./config.component.css'],
@@ -27,6 +29,24 @@ export class ConfigComponent {
   loading = true;
   err = '';
   cfgForm: FormGroup;
+  tips = {
+    paper: 'Режим бумажной торговли без реальных сделок',
+    shadow: 'Дублировать сделки в теневом API',
+    autostart: 'Запускать бота автоматически',
+    rest_base: 'Базовый REST URL теневого API',
+    ws_base: 'Базовый WebSocket URL теневого API',
+    chart: 'URL шаблона графика',
+    theme_light: 'Светлая тема интерфейса',
+    theme_dark: 'Тёмная тема интерфейса',
+    max_drawdown_pct: 'Максимальная допустимая просадка',
+    dd_window_sec: 'Окно расчёта просадки в секундах',
+    stop_duration_sec: 'Длительность остановки после просадки',
+    cooldown_sec: 'Пауза после остановки в секундах',
+    min_trades_for_dd: 'Минимум сделок для учёта просадки',
+    symbol: 'Торговый инструмент',
+    aggressive_take: 'Агрессивно забирать лучшие цены',
+    capital_usage: 'Доля капитала в сделке',
+  };
 
   constructor(
     private api: ApiService,
