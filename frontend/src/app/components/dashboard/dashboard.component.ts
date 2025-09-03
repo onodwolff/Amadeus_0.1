@@ -76,6 +76,12 @@ export class DashboardComponent implements OnDestroy {
               ts,
               raw: m
             };
+          } else if (t === 'status') {
+            const s = msg as any;
+            this.running = !!s.running || this.running;
+            this.symbol = s.symbol || this.symbol;
+            if (s.metrics) this.metrics = { ...this.metrics, ...s.metrics };
+            if (s.cfg) this.cfg = { ...this.cfg, ...s.cfg };
           } else if (t === 'order_event' || t === 'trade' || t === 'fill') {
             const k = t + '_count';
             this.metrics[k] = (this.metrics[k] || 0) + 1;

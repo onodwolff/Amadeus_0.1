@@ -42,6 +42,7 @@ strategy:
   market_maker:
     symbol: BNBUSDT
     quote_size: 10.0
+    capital_usage: 1.0
     min_spread_pct: 0.0
     cancel_timeout: 10.0
     reorder_interval: 1.0

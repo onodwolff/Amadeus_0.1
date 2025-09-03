@@ -653,6 +653,8 @@ class AppState:
                 "orders_filled",
                 "orders_expired",
                 "inventory_ratio",
+                "funds_in_use",
+                "funds_reserve",
             ):
                 val = getattr(self.strategy, key, None)
                 if val is not None:

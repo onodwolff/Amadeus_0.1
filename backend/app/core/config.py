@@ -78,6 +78,7 @@ class StrategyEconConfig(BaseModel):
 class MarketMakerStrategyConfig(BaseModel):
     symbol: str = "BNBUSDT"
     quote_size: float = 10.0
+    capital_usage: float = Field(1.0, ge=0.0, le=1.0)
     min_spread_pct: float = 0.0
     cancel_timeout: float = 10.0
     reorder_interval: float = 1.0

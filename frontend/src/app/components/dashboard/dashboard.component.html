@@ -19,6 +19,8 @@
         <div class="muted">orders_active: {{ metrics?.orders_active || 0 }}</div>
         <div class="muted">orders_filled: {{ metrics?.orders_filled || 0 }}</div>
         <div class="muted">ticks_total: {{ metrics?.ticks_total || 0 }}</div>
+        <div class="muted">funds_in_use: {{ (metrics?.funds_in_use || 0) | number:'1.2-2' }}</div>
+        <div class="muted">funds_reserve: {{ (metrics?.funds_reserve || 0) | number:'1.2-2' }}</div>
     </div>
 </div>
 

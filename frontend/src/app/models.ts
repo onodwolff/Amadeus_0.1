@@ -35,6 +35,7 @@ export interface Config {
     symbol?: string;
     market_maker?: {
       aggressive_take?: boolean;
+      capital_usage?: number;
       [key: string]: unknown;
     };
     [key: string]: unknown;
